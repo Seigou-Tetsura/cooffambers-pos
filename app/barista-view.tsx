@@ -300,7 +300,7 @@ export default function BaristaView({
 
       {/* 完了した注文（折りたたみ） */}
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-        <button
+        <div
           onClick={() => setShowCompleted((v) => !v)}
           className="w-full flex justify-between items-center p-4 hover:bg-neutral-50 transition-colors"
         >
@@ -310,7 +310,7 @@ export default function BaristaView({
             <InfoTip text="提供完了した注文の一覧です。新しく完了したものが上に表示されます。間違えて完了した場合はここから「取消」で提供待ちに戻せます。" align="left" />
           </span>
           <span className="text-neutral-400 text-lg">{showCompleted ? "▲" : "▼"}</span>
-        </button>
+        </div>
 
         {showCompleted && (
           <div className="border-t border-neutral-100 p-4">
