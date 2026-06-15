@@ -10,9 +10,15 @@ import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
 
 // ==========================================
-// ☕ バリスタ画面（BaristaView）
+// バリスタ画面（BaristaView）
 // 提供待ちオーダーの製造・提供管理。経過時間・品切れ切替・商品別チェック・完了一覧に対応
 // ==========================================
+const CheckIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M2.5 7.5l3 3 6-7" />
+  </svg>
+);
+
 export default function BaristaView({
   orders,
   isOrdersLoading,
@@ -53,7 +59,7 @@ export default function BaristaView({
     await updateDoc(doc(db, "orders", id), { status: "pending", completedAt: null });
   };
 
-  // 🔴 提供完了 → 誤タップに備え「元に戻す」トーストを表示（直前の1件を即復帰）
+  // 提供完了 → 誤タップに備え「元に戻す」トーストを表示（直前の1件を即復帰）
   const handleComplete = async (id: string, ticket?: string | null) => {
     if (completingId) return;
     setCompletingId(id);
@@ -130,46 +136,43 @@ export default function BaristaView({
 
   const soldOutCount = useMemo(() => menuItems.filter((m) => m.soldOut).length, [menuItems]);
 
-  if (isOrdersLoading) return <div className="text-center py-20 text-neutral-500 font-bold">オーダーを読み込み中...</div>;
+  if (isOrdersLoading) return <div className="text-center py-24 text-stone-400 text-sm tracking-wide">オーダーを読み込み中…</div>;
 
   const urgencyStyles: Record<string, { card: string; badge: string }> = {
-    normal: { card: "border-neutral-200", badge: "bg-neutral-100 text-neutral-500" },
-    warn: { card: "border-amber-300 ring-1 ring-amber-200", badge: "bg-amber-100 text-amber-700" },
-    danger: { card: "border-red-300 ring-2 ring-red-200", badge: "bg-red-100 text-red-700 animate-pulse" },
+    normal: { card: "border-stone-200", badge: "bg-stone-100 text-stone-500" },
+    warn: { card: "border-amber-300 ring-1 ring-amber-200/60", badge: "bg-amber-100 text-amber-700" },
+    danger: { card: "border-red-300 ring-1 ring-red-200/60", badge: "bg-red-100 text-red-700" },
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-4 rounded-2xl border flex flex-wrap gap-3 justify-between items-center shadow-sm">
-        <h2 className="font-bold text-neutral-700 flex items-center gap-1.5">
-          📥 提供待ち件数
+    <div className="space-y-5">
+      <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] px-5 py-4 flex flex-wrap gap-3 justify-between items-center">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1.5">
+          提供待ち
+          <span className="text-stone-800 normal-case tracking-normal text-base font-semibold tnum ml-0.5">{pendingOrders.length}</span>
+          <span className="normal-case tracking-normal text-stone-400 font-normal">件</span>
           <InfoTip text="まだ提供していない注文の一覧です。古い注文ほど上に並びます。各注文の「提供完了」を押すと下の完了一覧に移動します。" align="left" />
         </h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-neutral-500 font-medium">
-            残り <span className="font-black text-xl text-cyan-600 font-mono mx-1">{pendingOrders.length}</span> 件
-          </span>
-          <button
-            onClick={() => setShowSoldOutPanel((v) => !v)}
-            className={`text-xs font-bold px-3 py-2 rounded-lg border transition-colors ${
-              showSoldOutPanel ? "bg-stone-800 text-white border-stone-800" : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-50"
-            }`}
-          >
-            🚫 品切れ設定{soldOutCount > 0 && <span className="ml-1 bg-red-500 text-white px-1.5 rounded-full">{soldOutCount}</span>}
-          </button>
-        </div>
+        <button
+          onClick={() => setShowSoldOutPanel((v) => !v)}
+          className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${
+            showSoldOutPanel ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+          }`}
+        >
+          品切れ設定{soldOutCount > 0 && <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold tnum">{soldOutCount}</span>}
+        </button>
       </div>
 
       {/* 品切れ設定パネル（レジへリアルタイム反映） */}
       {showSoldOutPanel && (
-        <div className="bg-white p-5 rounded-2xl border-2 border-stone-200 shadow-sm">
-          <h3 className="font-bold text-neutral-700 text-sm mb-1 flex items-center gap-1.5">
-            🚫 品切れ設定
-            <InfoTip text="「売切」にするとレジ画面でその商品を注文できなくなります。現場の在庫状況をレジへ即反映できます。" align="left" />
+        <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-1 flex items-center gap-1.5">
+            品切れ設定
+            <InfoTip text="「在庫なし」にするとレジ画面でその商品を注文できなくなります。現場の在庫状況をレジへ即反映できます。" align="left" />
           </h3>
-          <p className="text-xs text-neutral-400 mb-4">「売切」にするとレジ画面から即座に注文できなくなります。</p>
+          <p className="text-xs text-stone-400 mb-4">在庫なしにすると、レジ画面から即座に注文できなくなります。</p>
           {menuItems.length === 0 ? (
-            <p className="text-sm text-neutral-400 text-center py-4">メニューがありません。</p>
+            <p className="text-sm text-stone-400 text-center py-4">メニューがありません。</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {menuItems.map((item) => (
@@ -177,13 +180,13 @@ export default function BaristaView({
                   key={item.id}
                   onClick={() => handleToggleSoldOut(item.id, !item.soldOut)}
                   disabled={togglingId === item.id}
-                  className={`flex justify-between items-center p-3 rounded-xl border-2 text-left transition-all active:scale-95 disabled:opacity-50 ${
-                    item.soldOut ? "bg-red-50 border-red-200" : "bg-white border-neutral-200 hover:border-neutral-300"
+                  className={`flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-left transition-all active:scale-[0.99] disabled:opacity-50 ${
+                    item.soldOut ? "bg-red-50/60 border-red-200" : "bg-white border-stone-200 hover:border-stone-300"
                   }`}
                 >
-                  <span className={`font-bold text-sm ${item.soldOut ? "text-red-500 line-through" : "text-neutral-800"}`}>{item.name}</span>
-                  <span className={`text-[11px] font-black px-2.5 py-1 rounded-full ${item.soldOut ? "bg-red-500 text-white" : "bg-emerald-100 text-emerald-700"}`}>
-                    {item.soldOut ? "売切中" : "販売中"}
+                  <span className={`text-sm font-medium ${item.soldOut ? "text-red-500 line-through" : "text-stone-800"}`}>{item.name}</span>
+                  <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${item.soldOut ? "bg-red-500 text-white" : "bg-emerald-50 text-emerald-600"}`}>
+                    {item.soldOut ? "在庫なし" : "販売中"}
                   </span>
                 </button>
               ))}
@@ -193,29 +196,31 @@ export default function BaristaView({
       )}
 
       {pendingOrders.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-2xl border text-neutral-400 text-sm shadow-sm">現在、提供待ちの注文はありません ☕</div>
+        <div className="text-center py-20 bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] text-stone-400 text-sm">提供待ちの注文はありません</div>
       ) : (
         <>
           {/* 製造タスク集計 */}
-          <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-5 shadow-sm">
-            <h3 className="font-black text-orange-800 text-sm mb-3 flex items-center gap-2 border-b border-orange-200 pb-2">
-              🔥 現在の製造タスク <span className="bg-orange-600 text-white px-2 py-0.5 rounded-full text-xs">残り {totalPendingItems} 品</span>
+          <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-3 flex items-center gap-2">
+              製造タスク
+              <span className="normal-case tracking-normal text-stone-800 font-semibold tnum">残り {totalPendingItems} 品</span>
               <InfoTip text="提供待ちの中で、まだ作っていない商品の合計です。商品にチェックを付けるとここから減っていきます。" align="left" />
             </h3>
             {totalPendingItems === 0 ? (
-              <p className="text-sm text-orange-700 font-bold text-center py-2">すべて提供チェック済みです 🎉</p>
+              <p className="text-sm text-emerald-600 font-medium py-1">すべて提供チェック済みです</p>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 {Object.entries(overallSummary).map(([name, data], i) => (
-                  <div key={i} className="bg-white px-3 py-2 rounded-lg shadow-sm border border-orange-100 flex flex-col justify-center">
-                    <div className="font-bold text-neutral-800 text-sm mb-1">
-                      {name} <span className="text-orange-600 font-black ml-1">計{data.total}</span>
+                  <div key={i} className="bg-stone-50 px-3 py-2.5 rounded-lg border border-stone-200">
+                    <div className="text-sm font-medium text-stone-800 mb-1 flex items-baseline justify-between gap-1">
+                      <span className="truncate">{name}</span>
+                      <span className="text-[#688a74] font-semibold tnum shrink-0">{data.total}</span>
                     </div>
                     {Object.keys(data.details).length > 0 && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-1.5">
                         {Object.entries(data.details).map(([temp, qty], j) => (
-                          <span key={j} className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${temp === "Hot" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
-                            {temp} x{qty}
+                          <span key={j} className={`text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded ${temp === "Hot" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
+                            {temp === "Hot" ? "HOT" : "ICE"} {qty}
                           </span>
                         ))}
                       </div>
@@ -235,48 +240,49 @@ export default function BaristaView({
               const servedCount = order.items.filter((it) => it.served).length;
               const allServed = order.items.length > 0 && servedCount === order.items.length;
               return (
-                <div key={order.id} className={`bg-white p-5 rounded-2xl border-2 shadow-sm flex flex-col justify-between min-h-[250px] ${u.card}`}>
+                <div key={order.id} className={`bg-white p-5 rounded-xl border shadow-sm flex flex-col justify-between min-h-[230px] ${u.card}`}>
                   <div>
-                    <div className="flex justify-between items-start mb-3 border-b border-neutral-100 pb-2 gap-2">
+                    <div className="flex justify-between items-start mb-3.5 gap-2">
                       <div className="flex flex-col gap-1.5">
                         {order.createdAt && (
-                          <span className={`text-[11px] font-black px-2 py-1 rounded w-fit ${u.badge}`}>⏱ {formatElapsed(elapsedSec)}経過</span>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md w-fit tnum ${u.badge}`}>{formatElapsed(elapsedSec)}経過</span>
                         )}
                         {order.items.length > 1 && (
-                          <span className="text-[10px] font-bold text-neutral-400">提供 {servedCount}/{order.items.length}</span>
+                          <span className="text-[10px] font-medium text-stone-400 tnum">提供 {servedCount} / {order.items.length}</span>
                         )}
                       </div>
                       {order.ticketNumber && (
-                        <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-lg font-black text-lg border border-amber-300 shrink-0">
-                          整理番号: {order.ticketNumber}
-                        </span>
+                        <div className="text-right shrink-0">
+                          <div className="text-[9px] uppercase tracking-[0.12em] text-stone-400 font-semibold">整理番号</div>
+                          <div className="text-xl font-semibold text-stone-900 tnum leading-tight">{order.ticketNumber}</div>
+                        </div>
                       )}
                     </div>
 
                     {/* 商品行（個別に提供チェック可能） */}
-                    <div className="space-y-1.5 overflow-y-auto max-h-[160px] pr-1">
+                    <div className="space-y-1.5 overflow-y-auto max-h-[160px] -mr-1 pr-1">
                       {order.items.map((item) => (
                         <button
                           key={item.id}
                           onClick={() => handleToggleItemServed(order, item.id)}
-                          className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all active:scale-[0.98] ${
-                            item.served ? "bg-emerald-50 border-emerald-200" : "bg-white border-neutral-200 hover:border-cyan-300"
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border text-left transition-all active:scale-[0.99] ${
+                            item.served ? "bg-emerald-50/70 border-emerald-200" : "bg-white border-stone-200 hover:border-stone-300"
                           }`}
                         >
                           <span
-                            className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs font-black ${
-                              item.served ? "bg-emerald-500 border-emerald-500 text-white" : "border-neutral-300 text-transparent"
+                            className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center ${
+                              item.served ? "bg-emerald-500 border-emerald-500 text-white" : "border-stone-300 text-transparent"
                             }`}
                           >
-                            ✓
+                            <CheckIcon className="w-3 h-3" />
                           </span>
                           {item.temperature && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-black shrink-0 ${item.temperature === "Hot" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"}`}>
-                              {item.temperature}
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide shrink-0 ${item.temperature === "Hot" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
+                              {item.temperature === "Hot" ? "HOT" : "ICE"}
                             </span>
                           )}
-                          <span className={`text-sm font-bold flex-1 ${item.served ? "text-neutral-400 line-through" : "text-neutral-800"}`}>{item.name}</span>
-                          <span className="text-sm font-mono font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded shrink-0">x{item.quantity}</span>
+                          <span className={`text-sm font-medium flex-1 truncate ${item.served ? "text-stone-400 line-through" : "text-stone-800"}`}>{item.name}</span>
+                          <span className="text-sm font-mono font-semibold text-stone-500 tnum shrink-0">×{item.quantity}</span>
                         </button>
                       ))}
                     </div>
@@ -284,12 +290,14 @@ export default function BaristaView({
 
                   <button
                     onClick={() => handleComplete(order.id, order.ticketNumber)}
-                    disabled={completingId === order.id}
-                    className={`w-full py-3 text-white font-bold rounded-xl text-sm transition-all active:scale-95 mt-4 shadow-sm disabled:opacity-50 ${
-                      allServed ? "bg-emerald-600 hover:bg-emerald-700" : "bg-cyan-600 hover:bg-cyan-700"
-                    }`}
+                    disabled={completingId === order.id || !allServed}
+                    className="w-full py-2.5 text-white text-sm font-medium tracking-wide rounded-lg transition-colors active:scale-[0.99] mt-4 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
                   >
-                    {completingId === order.id ? "送信中..." : allServed ? "全品提供済 → 完了する ✓" : "提供完了 ✓"}
+                    {completingId === order.id
+                      ? "送信中…"
+                      : allServed
+                      ? "提供完了"
+                      : `全商品をチェックで完了  ${servedCount}/${order.items.length}`}
                   </button>
                 </div>
               );
@@ -299,25 +307,24 @@ export default function BaristaView({
       )}
 
       {/* 完了した注文（折りたたみ） */}
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-        <div
-          onClick={() => setShowCompleted((v) => !v)}
-          className="w-full flex justify-between items-center p-4 hover:bg-neutral-50 transition-colors"
-        >
-          <span className="font-bold text-neutral-700 text-sm flex items-center gap-1.5">
-            ✅ 完了した注文
-            <span className="bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full text-xs font-black">{completedOrders.length}</span>
+      <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] overflow-hidden">
+        <button onClick={() => setShowCompleted((v) => !v)} className="w-full flex justify-between items-center px-5 py-3.5 hover:bg-stone-50 transition-colors">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-2">
+            完了した注文
+            <span className="normal-case tracking-normal bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full text-xs font-semibold tnum">{completedOrders.length}</span>
             <InfoTip text="提供完了した注文の一覧です。新しく完了したものが上に表示されます。間違えて完了した場合はここから「取消」で提供待ちに戻せます。" align="left" />
           </span>
-          <span className="text-neutral-400 text-lg">{showCompleted ? "▲" : "▼"}</span>
-        </div>
+          <svg viewBox="0 0 12 12" className={`w-3 h-3 text-stone-400 transition-transform ${showCompleted ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2.5 4.5L6 8l3.5-3.5" />
+          </svg>
+        </button>
 
         {showCompleted && (
-          <div className="border-t border-neutral-100 p-4">
+          <div className="border-t border-stone-200 p-4">
             {completedOrders.length === 0 ? (
-              <p className="text-sm text-neutral-400 text-center py-4">まだ完了した注文はありません。</p>
+              <p className="text-sm text-stone-400 text-center py-4">まだ完了した注文はありません。</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {completedOrders.map((order) => {
                   const grouped = groupOrderItems(order.items);
                   const timeStr = order.completedAt
@@ -326,24 +333,21 @@ export default function BaristaView({
                     ? new Date(order.createdAt.seconds * 1000).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })
                     : "";
                   return (
-                    <div key={order.id} className="flex justify-between items-center gap-3 p-3 rounded-xl border border-neutral-100 bg-neutral-50/60 opacity-70 hover:opacity-100 transition-opacity">
+                    <div key={order.id} className="flex justify-between items-center gap-3 px-3.5 py-2.5 rounded-lg border border-stone-100 bg-stone-50/50">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           {order.ticketNumber && (
-                            <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-black border border-amber-200">🎫 {order.ticketNumber}</span>
+                            <span className="bg-white text-stone-600 px-2 py-0.5 rounded text-xs font-semibold border border-stone-200 tnum">No. {order.ticketNumber}</span>
                           )}
-                          {timeStr && <span className="text-[10px] text-neutral-400 font-mono">{timeStr} 完了</span>}
+                          {timeStr && <span className="text-[10px] text-stone-400 font-mono tnum">{timeStr} 完了</span>}
                         </div>
-                        <div className="text-xs font-bold text-neutral-500 truncate">
+                        <div className="text-xs text-stone-500 truncate">
                           {Object.entries(grouped)
-                            .map(([name, g]) => `${name}×${g.total}`)
+                            .map(([name, g]) => `${name} ×${g.total}`)
                             .join("、")}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleRevert(order.id)}
-                        className="shrink-0 text-xs text-red-500 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg font-bold transition-colors"
-                      >
+                      <button onClick={() => handleRevert(order.id)} className="shrink-0 text-xs text-stone-500 hover:text-red-600 hover:border-red-200 border border-stone-300 px-3 py-1.5 rounded-md transition-colors">
                         取消
                       </button>
                     </div>

@@ -9,7 +9,7 @@ import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
 
 // ==========================================
-// 📈 期間集計（PeriodView）
+// 期間集計（PeriodView）
 // 複数日をまたいだ売上推移・合計・人気商品を一括集計（必要時のみ取得）
 // ==========================================
 const toDateStr = (d: Date) => d.toISOString().split("T")[0];
@@ -98,69 +98,64 @@ export default function PeriodView() {
     URL.revokeObjectURL(url);
   };
 
+  const Stat = ({ label, value }: { label: string; value: string }) => (
+    <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-1.5">{label}</div>
+      <div className="text-xl sm:text-2xl font-semibold tnum text-stone-900">{value}</div>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* 期間選択 */}
-      <div className="bg-white p-5 rounded-2xl border shadow-sm">
-        <h3 className="font-bold text-neutral-700 text-sm mb-4 flex items-center gap-1.5">
-          📈 期間を指定して集計
+      <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-4 flex items-center gap-1.5">
+          期間を指定して集計
           <InfoTip text="開始日と終了日を選んで「集計する」を押すと、その期間の売上をまとめて表示します。複数日の合計や1日ごとの推移、人気商品が分かります。" align="left" />
         </h3>
         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
           <div className="flex-1">
-            <label className="block text-xs text-neutral-400 font-bold mb-1">開始日</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full border border-neutral-300 rounded px-2 py-2 text-neutral-800 bg-neutral-50 font-medium focus:outline-none focus:border-orange-500" />
+            <label className="block text-xs text-stone-400 font-medium mb-1.5">開始日</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full border border-stone-300 rounded-md px-2.5 py-2 text-stone-800 bg-white font-medium tnum focus:outline-none focus:border-[#8a7390] focus:ring-2 focus:ring-[#8a7390]/15" />
           </div>
           <div className="flex-1">
-            <label className="block text-xs text-neutral-400 font-bold mb-1">終了日</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-neutral-300 rounded px-2 py-2 text-neutral-800 bg-neutral-50 font-medium focus:outline-none focus:border-orange-500" />
+            <label className="block text-xs text-stone-400 font-medium mb-1.5">終了日</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-stone-300 rounded-md px-2.5 py-2 text-stone-800 bg-white font-medium tnum focus:outline-none focus:border-[#8a7390] focus:ring-2 focus:ring-[#8a7390]/15" />
           </div>
-          <button onClick={fetchRange} disabled={loading} className="px-6 py-2.5 bg-stone-800 hover:bg-stone-700 text-white font-bold rounded-xl text-sm shadow-sm active:scale-95 disabled:opacity-50 whitespace-nowrap">
-            {loading ? "集計中..." : "集計する"}
+          <button onClick={fetchRange} disabled={loading} className="px-6 py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-medium tracking-wide rounded-lg transition-colors active:scale-[0.99] disabled:opacity-50 whitespace-nowrap">
+            {loading ? "集計中…" : "集計する"}
           </button>
         </div>
       </div>
 
       {orders === null ? (
-        <div className="text-center py-16 bg-white rounded-2xl border text-neutral-400 text-sm shadow-sm">期間を選んで「集計する」を押してください。</div>
+        <div className="text-center py-16 bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] text-stone-400 text-sm">期間を選んで「集計する」を押してください。</div>
       ) : !agg || agg.dailyArr.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border text-neutral-400 text-sm shadow-sm">この期間のデータはありません。</div>
+        <div className="text-center py-16 bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] text-stone-400 text-sm">この期間のデータはありません。</div>
       ) : (
         <>
           {/* サマリー */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-2xl border shadow-sm">
-              <div className="text-xs text-neutral-400 font-bold mb-1">期間総売上</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-neutral-800">¥{agg.totalSales.toLocaleString()}</div>
-            </div>
-            <div className="bg-white p-4 rounded-2xl border shadow-sm">
-              <div className="text-xs text-neutral-400 font-bold mb-1">総注文数</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-neutral-800">{agg.validCount}</div>
-            </div>
-            <div className="bg-white p-4 rounded-2xl border shadow-sm">
-              <div className="text-xs text-neutral-400 font-bold mb-1">営業日数</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-neutral-800">{agg.days}</div>
-            </div>
-            <div className="bg-white p-4 rounded-2xl border shadow-sm">
-              <div className="text-xs text-neutral-400 font-bold mb-1">1日平均売上</div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-neutral-800">¥{agg.avgPerDay.toLocaleString()}</div>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Stat label="期間総売上" value={`¥${agg.totalSales.toLocaleString()}`} />
+            <Stat label="総注文数" value={String(agg.validCount)} />
+            <Stat label="営業日数" value={String(agg.days)} />
+            <Stat label="1日平均売上" value={`¥${agg.avgPerDay.toLocaleString()}`} />
           </div>
 
           {/* 日次売上推移 */}
-          <div className="bg-white p-5 rounded-2xl border shadow-sm">
-            <h3 className="font-bold text-neutral-700 mb-4 text-sm border-b pb-2">📊 日次売上推移</h3>
-            <div className="flex items-end gap-2 sm:gap-3 h-48 mt-6 pt-6 border-b border-neutral-200 overflow-x-auto">
+          <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-2">日次売上推移</h3>
+            <div className="flex items-end gap-2 sm:gap-3 h-48 mt-6 pt-6 border-b border-stone-200 overflow-x-auto">
               {agg.dailyArr.map(([date, d]) => {
                 const heightPercent = (d.sales / agg.maxDaily) * 100;
                 const md = date.slice(5);
                 return (
-                  <div key={date} className="flex flex-col items-center flex-1 min-w-[36px] group relative h-full justify-end">
-                    <div className="opacity-0 group-hover:opacity-100 absolute -top-7 bg-neutral-800 text-white text-[10px] px-2 py-1 rounded transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                  <div key={date} className="flex flex-col items-center flex-1 min-w-[34px] group relative h-full justify-end">
+                    <div className="opacity-0 group-hover:opacity-100 absolute -top-7 bg-stone-900 text-white text-[10px] px-2 py-1 rounded transition-opacity whitespace-nowrap z-10 pointer-events-none tnum">
                       ¥{d.sales.toLocaleString()}
                     </div>
-                    <div className="w-full bg-orange-300 group-hover:bg-orange-500 transition-all duration-300 rounded-t-md min-h-[4px]" style={{ height: `${heightPercent}%` }}></div>
-                    <span className="text-[10px] text-neutral-500 mt-2 font-mono whitespace-nowrap">{md}</span>
+                    <div className="w-full bg-stone-200 group-hover:bg-[#8a7390] transition-colors rounded-t-[3px] min-h-[3px]" style={{ height: `${heightPercent}%` }}></div>
+                    <span className="text-[10px] text-stone-400 mt-2 font-mono tnum whitespace-nowrap">{md}</span>
                   </div>
                 );
               })}
@@ -168,27 +163,27 @@ export default function PeriodView() {
           </div>
 
           {/* 日次テーブル + CSV */}
-          <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
-            <div className="p-4 bg-neutral-50 border-b flex justify-between items-center">
-              <h3 className="font-bold text-neutral-700 text-sm">🗓 日次明細</h3>
-              <button onClick={handleExportCSV} className="text-xs bg-stone-800 hover:bg-stone-700 text-white font-bold py-1.5 px-3 rounded transition-colors shadow-sm">
-                📥 CSVでエクスポート
+          <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] overflow-hidden">
+            <div className="px-5 py-4 border-b border-stone-200 flex justify-between items-center">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">日次明細</h3>
+              <button onClick={handleExportCSV} className="text-xs bg-stone-900 hover:bg-stone-800 text-white font-medium py-1.5 px-3 rounded-md transition-colors">
+                CSV書き出し
               </button>
             </div>
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="bg-neutral-50 text-neutral-400 text-xs font-bold border-b">
-                  <th className="p-3">営業日</th>
-                  <th className="p-3 text-right">注文数</th>
-                  <th className="p-3 text-right">売上</th>
+                <tr className="text-[10px] uppercase tracking-wider text-stone-400 border-b border-stone-200">
+                  <th className="px-5 py-2.5 font-semibold">営業日</th>
+                  <th className="px-3 py-2.5 font-semibold text-right">注文数</th>
+                  <th className="px-5 py-2.5 font-semibold text-right">売上</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody>
                 {agg.dailyArr.map(([date, d]) => (
-                  <tr key={date} className="hover:bg-neutral-50/50">
-                    <td className="p-3 font-mono font-bold text-neutral-700">{date}</td>
-                    <td className="p-3 text-right font-mono text-neutral-600">{d.count}</td>
-                    <td className="p-3 text-right font-mono font-black text-neutral-800">¥{d.sales.toLocaleString()}</td>
+                  <tr key={date} className="border-b border-stone-100 last:border-0 hover:bg-stone-50/50">
+                    <td className="px-5 py-2.5 font-mono font-medium text-stone-700 tnum">{date}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-stone-500 tnum">{d.count}</td>
+                    <td className="px-5 py-2.5 text-right font-mono font-semibold text-stone-900 tnum">¥{d.sales.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -196,18 +191,16 @@ export default function PeriodView() {
           </div>
 
           {/* 期間人気商品 */}
-          <div className="bg-white p-5 rounded-2xl border shadow-sm">
-            <h3 className="font-bold text-neutral-700 mb-4 text-sm border-b pb-2">🏆 期間の人気商品 TOP10</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+          <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-4">期間の人気商品 TOP10</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
               {agg.rankingArr.map(([name, count], index) => (
-                <div key={name} className="flex justify-between items-center py-2 bg-white px-3 rounded-lg border shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-black text-white ${index === 0 ? "bg-amber-400" : index === 1 ? "bg-stone-400" : index === 2 ? "bg-amber-600" : "bg-neutral-300"}`}>
-                      {index + 1}
-                    </span>
-                    <span className="text-neutral-700 font-bold">{name}</span>
+                <div key={name} className="flex justify-between items-center py-2 border-b border-stone-100">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`w-5 text-center text-xs font-semibold tnum ${index < 3 ? "text-[#8a7390]" : "text-stone-300"}`}>{index + 1}</span>
+                    <span className="text-sm text-stone-700 truncate">{name}</span>
                   </div>
-                  <span className="font-black font-mono text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded">{count} 個</span>
+                  <span className="text-sm font-mono font-semibold text-stone-900 tnum shrink-0">{count}</span>
                 </div>
               ))}
             </div>

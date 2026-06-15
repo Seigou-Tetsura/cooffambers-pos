@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3efe7;
+  --foreground: #2b2722;
 }
 
 @theme inline {
@@ -12,27 +12,69 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* くすみ系（ダスティ）パレット — 強い原色を避け、視覚的ストレスを抑えた差し色に上書き */
+@theme {
+  /* danger / HOT などに使う赤 → ダスティ・ローズ */
+  --color-red-50: #f7efed;
+  --color-red-100: #efdcd7;
+  --color-red-200: #e0c2bb;
+  --color-red-300: #cda49b;
+  --color-red-400: #bb877c;
+  --color-red-500: #a86f63;
+  --color-red-600: #8d5b51;
+  --color-red-700: #714a42;
+
+  /* success / 提供済 などに使う緑 → ダスティ・セージ */
+  --color-emerald-50: #eef2ee;
+  --color-emerald-100: #dde7df;
+  --color-emerald-200: #c4d4c8;
+  --color-emerald-300: #a3bdab;
+  --color-emerald-400: #82a18d;
+  --color-emerald-500: #688a74;
+  --color-emerald-600: #54725f;
+  --color-emerald-700: #455d4d;
+
+  /* warning / 未対応 などに使う琥珀 → ダスティ・オーカー */
+  --color-amber-50: #f6f1e6;
+  --color-amber-100: #ece0c9;
+  --color-amber-200: #ddc9a1;
+  --color-amber-300: #ccae76;
+  --color-amber-400: #bd9852;
+  --color-amber-500: #a8823f;
+  --color-amber-600: #8a6a34;
+  --color-amber-700: #6e552b;
+
+  /* ICE などに使う青 → ダスティ・スレートブルー */
+  --color-blue-50: #eef1f5;
+  --color-blue-100: #dce3ec;
+  --color-blue-200: #c2cddd;
+  --color-blue-300: #a2b1c9;
+  --color-blue-400: #8295b3;
+  --color-blue-500: #6b7e9d;
+  --color-blue-600: #586987;
+  --color-blue-700: #46546c;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数字を等幅・桁揃えに */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 /* トーストの出現アニメーション */
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.98);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }

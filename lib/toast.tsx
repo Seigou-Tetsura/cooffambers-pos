@@ -30,16 +30,10 @@ export function useToast(): ToastApi {
   return ctx;
 }
 
-const STYLES: Record<ToastType, string> = {
-  success: "bg-emerald-600 text-white border-emerald-500",
-  error: "bg-red-600 text-white border-red-500",
-  info: "bg-stone-800 text-white border-stone-700",
-};
-
-const ICONS: Record<ToastType, string> = {
-  success: "✓",
-  error: "⚠",
-  info: "↩",
+const DOT: Record<ToastType, string> = {
+  success: "bg-emerald-400",
+  error: "bg-red-400",
+  info: "bg-stone-400",
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -101,19 +95,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toast && (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 rounded-xl border px-5 py-3.5 shadow-2xl animate-[toastIn_0.25s_ease-out] ${STYLES[toast.type]}`}
+            className="pointer-events-auto flex items-center gap-3 rounded-xl bg-stone-900 text-white pl-4 pr-2.5 py-3 shadow-xl border border-white/10 animate-[toastIn_0.22s_ease-out]"
           >
-            <span className="text-base font-black opacity-90">{ICONS[toast.type]}</span>
-            <span className="text-sm font-bold">{toast.message}</span>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT[toast.type]}`} />
+            <span className="text-sm font-medium">{toast.message}</span>
             {toast.action && (
               <button
                 onClick={toast.action.onClick}
-                className="ml-1 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-sm font-black transition-colors active:scale-95"
+                className="ml-1 rounded-md border border-white/20 hover:bg-white/10 px-2.5 py-1 text-xs font-semibold tracking-wide transition-colors"
               >
                 {toast.action.label}
               </button>
             )}
-            <button onClick={dismiss} className="ml-1 text-white/60 hover:text-white text-lg leading-none" aria-label="閉じる">
+            <button onClick={dismiss} className="ml-0.5 w-6 h-6 flex items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10 text-lg leading-none" aria-label="閉じる">
               ×
             </button>
           </div>

@@ -13,7 +13,7 @@ export interface MenuItem {
   name: string;
   price: number;
   category: string;
-  soldOut: boolean; // 🔴 品切れ管理
+  soldOut: boolean; // 品切れ管理
 }
 
 // Firestore から読み込んだ生データ（型が不定なので一度受ける）
@@ -32,7 +32,7 @@ export interface CartItem {
   temperature?: "Hot" | "Ice";
   quantity: number;
   category: string;
-  served?: boolean; // 🔴 商品ごとの提供済みチェック
+  served?: boolean; // 商品ごとの提供済みチェック
 }
 
 export interface Order {
@@ -43,6 +43,6 @@ export interface Order {
   status: "pending" | "completed" | "cancelled"; // 物理削除を廃止し「取消済」を採用
   date: string;
   createdAt: Timestamp | null;
-  completedAt?: Timestamp | null; // 🔴 提供完了した時刻（完了一覧の並び替え用）
+  completedAt?: Timestamp | null; // 提供完了した時刻（完了一覧の並び替え用）
   ticketNumber?: string | null;
 }

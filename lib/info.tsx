@@ -30,7 +30,7 @@ export function InfoTip({ text, align = "center" }: { text: string; align?: "lef
           e.preventDefault();
           setOpen((v) => !v);
         }}
-        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-neutral-200 text-neutral-500 text-[10px] font-black leading-none hover:bg-neutral-300 transition-colors"
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-stone-200 text-stone-500 text-[10px] font-black leading-none hover:bg-stone-300 transition-colors"
         aria-label="説明を表示"
       >
         i
