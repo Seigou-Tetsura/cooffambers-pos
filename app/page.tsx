@@ -17,22 +17,13 @@ const Loading = () => <div className="text-center py-24 text-stone-400 text-sm t
 const DashboardView = dynamic(() => import("./dashboard-view"), { loading: Loading, ssr: false });
 const PeriodView = dynamic(() => import("./period-view"), { loading: Loading, ssr: false });
 
-<<<<<<< HEAD
-// 各画面のアイデンティティカラー（くすみ系）— 視線誘導のための色分け
+
 const NAV: { mode: Mode; label: string; accent: string }[] = [
-  { mode: "cashier", label: "レジ", accent: "#8a5a3b" },
-  { mode: "barista", label: "バリスタ", accent: "#688a74" },
-  { mode: "dashboard", label: "売上明細", accent: "#6b7e9d" },
-  { mode: "period", label: "期間集計", accent: "#8a7390" },
-  { mode: "settings", label: "設定", accent: "#a8823f" },
-=======
-const NAV: { mode: Mode; label: (n: number) => string; active: string; inactive: string }[] = [
-  { mode: "cashier", label: () => "📝 レジ入力", active: "border-orange-600 text-orange-600 font-bold", inactive: "border-transparent text-neutral-500 hover:text-neutral-800" },
-  { mode: "barista", label: (n) => `☕ バリスタ (${n})`, active: "border-cyan-600 text-cyan-600 font-bold", inactive: "border-transparent text-neutral-500 hover:text-neutral-800" },
-  { mode: "dashboard", label: () => "📊 売上明細", active: "border-stone-800 text-stone-800 font-bold", inactive: "border-transparent text-neutral-500 hover:text-neutral-800" },
-  { mode: "period", label: () => "🗓️ 期間集計", active: "border-indigo-600 text-indigo-600 font-bold", inactive: "border-transparent text-neutral-500 hover:text-neutral-800" },
-  { mode: "settings", label: () => "⚙️ 設定", active: "border-emerald-600 text-emerald-600 font-bold", inactive: "border-transparent text-neutral-500 hover:text-neutral-800" },
->>>>>>> 7b38f7592aeb6b3cc07b2f5eb9f618554d85acba
+  { mode: "cashier", label: "📝 レジ入力", accent: "#ea580c" },
+  { mode: "barista", label: "☕ バリスタ", accent: "#0891b2" },
+  { mode: "dashboard", label: "📊 売上明細", accent: "#292524" },
+  { mode: "period", label: "🗓️ 期間集計", accent: "#8a7390" },
+  { mode: "settings", label: "⚙️ 設定", accent: "#a8823f" },
 ];
 
 export default function App() {
