@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { collection, query, where, orderBy, onSnapshot, doc } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -17,13 +17,12 @@ const Loading = () => <div className="text-center py-24 text-stone-400 text-sm t
 const DashboardView = dynamic(() => import("./dashboard-view"), { loading: Loading, ssr: false });
 const PeriodView = dynamic(() => import("./period-view"), { loading: Loading, ssr: false });
 
-// 各画面のアイデンティティカラー（くすみ系）— 視線誘導のための色分け
 const NAV: { mode: Mode; label: string; accent: string }[] = [
-  { mode: "cashier", label: "レジ", accent: "#8a5a3b" },
-  { mode: "barista", label: "バリスタ", accent: "#688a74" },
-  { mode: "dashboard", label: "売上明細", accent: "#6b7e9d" },
-  { mode: "period", label: "期間集計", accent: "#8a7390" },
-  { mode: "settings", label: "設定", accent: "#a8823f" },
+  { mode: "cashier", label: "📝 レジ入力", accent: "#ea580c" },
+  { mode: "barista", label: "☕ バリスタ", accent: "#0891b2" },
+  { mode: "dashboard", label: "📊 売上明細", accent: "#292524" },
+  { mode: "period", label: "🗓️ 期間集計", accent: "#8a7390" },
+  { mode: "settings", label: "⚙️ 設定", accent: "#a8823f" },
 ];
 
 export default function App() {
@@ -33,9 +32,14 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [useTicket, setUseTicket] = useState(false);
+  const [showAvgTime, setShowAvgTime] = useState(false);
 
   const [isOrdersLoading, setIsOrdersLoading] = useState(true);
   const [isMenuLoading, setIsMenuLoading] = useState(true);
+
+  // 整理番号は App 側で保持（タブを切り替えてもリセットされないように）
+  const [ticketNumber, setTicketNumber] = useState("");
+  const ticketInitialized = useRef(false);
 
   useEffect(() => {
     setIsOrdersLoading(true);
@@ -71,14 +75,41 @@ export default function App() {
         }));
         setMenuItems(safeItems);
         setUseTicket(docSnap.data().useTicket || false);
+        setShowAvgTime(docSnap.data().showAvgTime || false);
       } else {
         setMenuItems([]);
         setUseTicket(false);
+        setShowAvgTime(false);
       }
       setIsMenuLoading(false);
     });
     return () => unsubscribe();
   }, [selectedDate]);
+
+  // 整理番号の自動採番: 既存注文の最大番号 + 1（無ければ 1）
+  const suggestedTicket = useMemo(() => {
+    let max = 0;
+    orders.forEach((o) => {
+      if (o.status === "cancelled" || !o.ticketNumber) return;
+      const n = parseToNumber(o.ticketNumber);
+      if (n > max) max = n;
+    });
+    return max + 1;
+  }, [orders]);
+
+  // 営業日を切り替えたら採番をリセット
+  useEffect(() => {
+    ticketInitialized.current = false;
+    setTicketNumber("");
+  }, [selectedDate]);
+
+  // 注文読み込み後に初期の整理番号をセット（営業日ごとに1回だけ）
+  useEffect(() => {
+    if (useTicket && !isOrdersLoading && !ticketInitialized.current) {
+      setTicketNumber(String(suggestedTicket));
+      ticketInitialized.current = true;
+    }
+  }, [useTicket, isOrdersLoading, suggestedTicket]);
 
   const pendingOrdersCount = useMemo(() => orders.filter((o) => o.status === "pending").length, [orders]);
   const activeAccent = NAV.find((n) => n.mode === mode)?.accent ?? "#8a5a3b";
@@ -155,14 +186,16 @@ export default function App() {
               menuItems={menuItems}
               isMenuLoading={isMenuLoading}
               useTicket={useTicket}
+              showAvgTime={showAvgTime}
               orders={orders}
-              isOrdersLoading={isOrdersLoading}
+              ticketNumber={ticketNumber}
+              setTicketNumber={setTicketNumber}
             />
           )}
           {mode === "barista" && <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} selectedDate={selectedDate} />}
           {mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} menuItems={menuItems} />}
           {mode === "period" && <PeriodView />}
-          {mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} useTicket={useTicket} />}
+          {mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} useTicket={useTicket} showAvgTime={showAvgTime} />}
         </main>
       </div>
     </ToastProvider>

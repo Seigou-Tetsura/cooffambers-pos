@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Order, MenuItem } from "../lib/types";
-import { groupOrderItems, escapeCsv } from "../lib/utils";
+import { groupOrderItems, escapeCsv, computeCompletion, formatElapsed } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
 import OrderEditModal from "./order-edit-modal";
@@ -87,6 +87,8 @@ export default function DashboardView({
 
     return { totalSales, validCount, hourlyData, maxHourlyCount, hourlyDetails, activeHours, rankingArr };
   }, [parsedOrders]);
+
+  const completion = useMemo(() => computeCompletion(orders), [orders]);
 
   const groupedOrdersMap = useMemo(
     () => Object.fromEntries(parsedOrders.map((o) => [o.id, groupOrderItems(o.items)])),
@@ -178,6 +180,38 @@ export default function DashboardView({
             <span className="text-base text-stone-400 font-normal ml-1">件</span>
           </div>
         </div>
+      </div>
+
+      {/* 平均オーダー完了時間 */}
+      <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-2 flex items-center gap-1.5">
+          平均オーダー完了時間
+          <InfoTip text="受注から提供完了までの平均時間です。1日平均と時間帯別を表示します。完了済みで受注・提供の両時刻が記録された注文のみ対象です。" align="left" />
+        </h3>
+        {completion.avgSec === null ? (
+          <p className="text-stone-400 text-sm text-center py-8">完了データがありません</p>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-semibold tnum text-stone-900">{formatElapsed(completion.avgSec)}</span>
+              <span className="text-xs text-stone-400">1日平均 ・ 完了 {completion.count} 件</span>
+            </div>
+            <div className="mt-4 pt-3 border-t border-stone-100">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-2">時間帯別の平均</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-0.5">
+                {Object.keys(completion.byHourAvg)
+                  .map(Number)
+                  .sort((a, b) => a - b)
+                  .map((h) => (
+                    <div key={h} className="flex justify-between items-center py-1.5 border-b border-stone-100">
+                      <span className="text-sm text-stone-500 font-mono tnum">{h}:00</span>
+                      <span className="text-sm font-semibold text-stone-800 tnum">{formatElapsed(completion.byHourAvg[h])}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 時間帯別の注文数 */}

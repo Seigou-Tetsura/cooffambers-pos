@@ -308,7 +308,7 @@ export default function BaristaView({
 
       {/* 完了した注文（折りたたみ） */}
       <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] overflow-hidden">
-        <button onClick={() => setShowCompleted((v) => !v)} className="w-full flex justify-between items-center px-5 py-3.5 hover:bg-stone-50 transition-colors">
+        <div role="button" tabIndex={0} onClick={() => setShowCompleted((v) => !v)} className="w-full flex justify-between items-center px-5 py-3.5 hover:bg-stone-50 transition-colors cursor-pointer select-none">
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-2">
             完了した注文
             <span className="normal-case tracking-normal bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full text-xs font-semibold tnum">{completedOrders.length}</span>
@@ -317,7 +317,7 @@ export default function BaristaView({
           <svg viewBox="0 0 12 12" className={`w-3 h-3 text-stone-400 transition-transform ${showCompleted ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2.5 4.5L6 8l3.5-3.5" />
           </svg>
-        </button>
+        </div>
 
         {showCompleted && (
           <div className="border-t border-stone-200 p-4">

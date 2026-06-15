@@ -14,10 +14,12 @@ export default function SettingsView({
   selectedDate,
   menuItems,
   useTicket,
+  showAvgTime,
 }: {
   selectedDate: string;
   menuItems: MenuItem[];
   useTicket: boolean;
+  showAvgTime: boolean;
 }) {
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState<string>("");
@@ -62,6 +64,13 @@ export default function SettingsView({
     setConfirmDeleteId(null);
   };
 
+  const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
+    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" disabled={isSaving} />
+      <div className="w-12 h-6.5 bg-stone-200 rounded-full peer peer-checked:bg-[#a8823f] peer-checked:after:translate-x-[22px] after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm"></div>
+    </label>
+  );
+
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-6 flex items-center justify-between gap-4">
@@ -72,16 +81,18 @@ export default function SettingsView({
           </h2>
           <p className="text-sm text-stone-500 mt-1">レジで注文ごとに整理番号を発行します（自動で1から採番）。</p>
         </div>
-        <label className="relative inline-flex items-center cursor-pointer shrink-0">
-          <input
-            type="checkbox"
-            checked={useTicket}
-            onChange={(e) => run(() => mutateMenu(selectedDate, { type: "toggleTicket", value: e.target.checked }))}
-            className="sr-only peer"
-            disabled={isSaving}
-          />
-          <div className="w-12 h-6.5 bg-stone-200 rounded-full peer peer-checked:bg-[#a8823f] peer-checked:after:translate-x-[22px] after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm"></div>
-        </label>
+        <Toggle checked={useTicket} onChange={(v) => run(() => mutateMenu(selectedDate, { type: "toggleTicket", value: v }))} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-6 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-stone-800 flex items-center gap-1.5">
+            レジに平均提供時間を表示
+            <InfoTip text="オンにすると、レジ画面の上部に「本日の平均提供時間（受注から提供までの平均）」が表示されます。混雑状況の目安になります。" align="left" />
+          </h2>
+          <p className="text-sm text-stone-500 mt-1">本日の受注〜提供の平均時間をレジ画面に表示します。</p>
+        </div>
+        <Toggle checked={showAvgTime} onChange={(v) => run(() => mutateMenu(selectedDate, { type: "toggleAvgTime", value: v }))} />
       </div>
 
       <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-6">
