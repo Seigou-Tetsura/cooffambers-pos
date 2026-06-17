@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { CartItem, MenuItem, Order, CATEGORIES } from "../lib/types";
+import { CartItem, MenuItem, Order, CatDef } from "../lib/types";
 import { parseToNumber, computeCompletion, formatElapsed } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
@@ -15,6 +15,7 @@ import { InfoTip } from "../lib/info";
 export default function CashierView({
   selectedDate,
   menuItems,
+  categories,
   isMenuLoading,
   useTicket,
   showAvgTime,
@@ -24,6 +25,7 @@ export default function CashierView({
 }: {
   selectedDate: string;
   menuItems: MenuItem[];
+  categories: CatDef[];
   isMenuLoading: boolean;
   useTicket: boolean;
   showAvgTime: boolean;
@@ -35,15 +37,17 @@ export default function CashierView({
   const [selectedTemp, setSelectedTemp] = useState<"Hot" | "Ice">("Hot");
   const [cashReceived, setCashReceived] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { showError } = useToast();
+  const { showError, showToast } = useToast();
 
   // 本日の平均提供時間（受注→提供）
   const completion = useMemo(() => computeCompletion(orders), [orders]);
+  // HOT/ICE を扱うカテゴリ名の集合
+  const tempCategoryNames = useMemo(() => new Set(categories.filter((c) => c.hasTemp).map((c) => c.name)), [categories]);
 
   const addToCart = (item: MenuItem) => {
     if (item.soldOut) return;
-    const isCoffee = item.category === "コーヒー";
-    const cartItemId = `${item.id}-${isCoffee ? selectedTemp : "none"}`;
+    const isTemp = tempCategoryNames.has(item.category);
+    const cartItemId = `${item.id}-${isTemp ? selectedTemp : "none"}`;
 
     setCart((prev) => {
       const existingIndex = prev.findIndex((i) => i.id === cartItemId);
@@ -60,7 +64,7 @@ export default function CashierView({
           price: item.price,
           category: item.category,
           quantity: 1,
-          ...(isCoffee && { temperature: selectedTemp }),
+          ...(isTemp && { temperature: selectedTemp }),
         },
       ];
     });
@@ -100,6 +104,7 @@ export default function CashierView({
     setIsSubmitting(true);
     try {
       const shortOrderNumber = Date.now() % 10000;
+      const change = (cashReceived ?? 0) - totalAmount;
       await addDoc(collection(db, "orders"), {
         orderNumber: shortOrderNumber,
         items: cart,
@@ -115,6 +120,7 @@ export default function CashierView({
       if (useTicket) {
         setTicketNumber(String(parseToNumber(submittedTicket) + 1));
       }
+      showToast(`注文を受け付けました${change > 0 ? `（お釣り ¥${change.toLocaleString()}）` : ""}`);
     } catch (e) {
       console.error(e);
       showError("通信エラーが発生しました。再試行してください。");
@@ -154,35 +160,35 @@ export default function CashierView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* 商品選択 */}
         <div className="lg:col-span-2 space-y-5">
-          {CATEGORIES.map((category) => {
-            const itemsInCategory = menuItems.filter((item) => item.category === category);
+          {categories.map((category) => {
+            const itemsInCategory = menuItems.filter((item) => item.category === category.name);
             if (itemsInCategory.length === 0) return null;
-            const isCoffee = category === "コーヒー";
+            const isTemp = category.hasTemp;
 
             return (
-              <section key={category} className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
+              <section key={category.id} className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1.5">
-                    {category}
-                    {isCoffee && <InfoTip text="商品を押すとカートに追加されます。コーヒーは右のHOT / ICEを選んでから押すと、その温度で追加されます。" align="left" />}
+                    {category.name}
+                    {isTemp && <InfoTip text="商品を押すとカートに追加されます。右のHOT / ICEを選んでから押すと、その温度で追加されます。" align="left" />}
                   </h2>
-                  {isCoffee && (
+                  {isTemp && (
                     <div className="flex items-center gap-1.5">
-                      <div className="flex bg-stone-100 rounded-lg p-0.5 text-xs font-semibold">
+                      <div className="flex bg-stone-100 rounded-lg p-0.5 text-xs font-bold">
                         <button
                           onClick={() => setSelectedTemp("Hot")}
-                          className={`px-4 py-1.5 rounded-md transition-all ${selectedTemp === "Hot" ? "bg-white text-red-600 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
+                          className={`px-4 py-1.5 rounded-md transition-all ${selectedTemp === "Hot" ? "bg-red-100 text-red-700 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
                         >
                           HOT
                         </button>
                         <button
                           onClick={() => setSelectedTemp("Ice")}
-                          className={`px-4 py-1.5 rounded-md transition-all ${selectedTemp === "Ice" ? "bg-white text-blue-600 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
+                          className={`px-4 py-1.5 rounded-md transition-all ${selectedTemp === "Ice" ? "bg-blue-100 text-blue-700 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
                         >
                           ICE
                         </button>
                       </div>
-                      <InfoTip text="コーヒーの温度を選びます。選んだ温度で、下の商品がカートに入ります。" align="right" />
+                      <InfoTip text="温度を選びます。選んだ温度で、下の商品がカートに入ります。" align="right" />
                     </div>
                   )}
                 </div>
@@ -239,8 +245,11 @@ export default function CashierView({
                 <InfoTip text="今カートに入っている商品です。＋ / − で数量を変えられます。下のボタンでバリスタ画面に送られます。" align="left" />
               </h2>
               {cart.length > 0 && (
-                <button onClick={() => setCart([])} className="text-xs text-stone-400 hover:text-red-500 transition-colors">
-                  クリア
+                <button
+                  onClick={() => setCart([])}
+                  className="text-xs font-medium text-stone-500 border border-stone-300 rounded-md px-2.5 py-1 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                >
+                  すべてクリア
                 </button>
               )}
             </div>
@@ -253,7 +262,7 @@ export default function CashierView({
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-stone-800 flex items-center gap-1.5 truncate">
                         {item.temperature && (
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide ${item.temperature === "Hot" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide ${item.temperature === "Hot" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
                             {item.temperature === "Hot" ? "HOT" : "ICE"}
                           </span>
                         )}

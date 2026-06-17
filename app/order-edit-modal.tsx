@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Order, CartItem, MenuItem, CATEGORIES } from "../lib/types";
+import { Order, CartItem, MenuItem, CatDef } from "../lib/types";
 import { useToast } from "../lib/toast";
 
 // ==========================================
@@ -13,10 +13,12 @@ import { useToast } from "../lib/toast";
 export default function OrderEditModal({
   order,
   menuItems,
+  categories,
   onClose,
 }: {
   order: Order;
   menuItems: MenuItem[];
+  categories: CatDef[];
   onClose: () => void;
 }) {
   const { showError, showToast } = useToast();
@@ -24,6 +26,7 @@ export default function OrderEditModal({
   const [selectedTemp, setSelectedTemp] = useState<"Hot" | "Ice">("Hot");
   const [isSaving, setIsSaving] = useState(false);
 
+  const tempCategoryNames = useMemo(() => new Set(categories.filter((c) => c.hasTemp).map((c) => c.name)), [categories]);
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   const changeQty = (id: string, delta: number) => {
@@ -31,8 +34,8 @@ export default function OrderEditModal({
   };
 
   const addFromMenu = (item: MenuItem) => {
-    const isCoffee = item.category === "コーヒー";
-    const cartItemId = `${item.id}-${isCoffee ? selectedTemp : "none"}`;
+    const isTemp = tempCategoryNames.has(item.category);
+    const cartItemId = `${item.id}-${isTemp ? selectedTemp : "none"}`;
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.id === cartItemId);
       if (idx > -1) {
@@ -42,7 +45,7 @@ export default function OrderEditModal({
       }
       return [
         ...prev,
-        { id: cartItemId, name: item.name, price: item.price, category: item.category, quantity: 1, ...(isCoffee && { temperature: selectedTemp }) },
+        { id: cartItemId, name: item.name, price: item.price, category: item.category, quantity: 1, ...(isTemp && { temperature: selectedTemp }) },
       ];
     });
   };
@@ -87,7 +90,7 @@ export default function OrderEditModal({
                 <div key={item.id} className="flex justify-between items-center border border-stone-200 rounded-lg px-3 py-2.5">
                   <div className="flex items-center gap-1.5 min-w-0">
                     {item.temperature && (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide ${item.temperature === "Hot" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide ${item.temperature === "Hot" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
                         {item.temperature === "Hot" ? "HOT" : "ICE"}
                       </span>
                     )}
@@ -108,21 +111,21 @@ export default function OrderEditModal({
           <div className="bg-stone-50 rounded-lg border border-stone-200 p-4">
             <div className="flex justify-between items-center mb-3">
               <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400">商品を追加</h4>
-              <div className="flex bg-white border border-stone-200 rounded-md p-0.5 text-xs font-semibold">
-                <button onClick={() => setSelectedTemp("Hot")} className={`px-3 py-1 rounded ${selectedTemp === "Hot" ? "bg-red-50 text-red-600" : "text-stone-400"}`}>HOT</button>
-                <button onClick={() => setSelectedTemp("Ice")} className={`px-3 py-1 rounded ${selectedTemp === "Ice" ? "bg-blue-50 text-blue-600" : "text-stone-400"}`}>ICE</button>
+              <div className="flex bg-white border border-stone-200 rounded-md p-0.5 text-xs font-bold">
+                <button onClick={() => setSelectedTemp("Hot")} className={`px-3 py-1 rounded ${selectedTemp === "Hot" ? "bg-red-100 text-red-700" : "text-stone-400"}`}>HOT</button>
+                <button onClick={() => setSelectedTemp("Ice")} className={`px-3 py-1 rounded ${selectedTemp === "Ice" ? "bg-blue-100 text-blue-700" : "text-stone-400"}`}>ICE</button>
               </div>
             </div>
             {menuItems.length === 0 ? (
               <p className="text-xs text-stone-400">この営業日のメニューがありません。</p>
             ) : (
               <div className="space-y-3">
-                {CATEGORIES.map((cat) => {
-                  const list = menuItems.filter((m) => m.category === cat);
+                {categories.map((cat) => {
+                  const list = menuItems.filter((m) => m.category === cat.name);
                   if (list.length === 0) return null;
                   return (
-                    <div key={cat}>
-                      <div className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold mb-1.5">{cat}</div>
+                    <div key={cat.id}>
+                      <div className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold mb-1.5">{cat.name}</div>
                       <div className="flex flex-wrap gap-1.5">
                         {list.map((m) => (
                           <button

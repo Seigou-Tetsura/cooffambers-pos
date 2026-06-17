@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Order, MenuItem } from "../lib/types";
+import { Order, MenuItem, CatDef } from "../lib/types";
 import { groupOrderItems, escapeCsv, computeCompletion, formatElapsed } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
@@ -17,10 +17,12 @@ export default function DashboardView({
   orders,
   selectedDate,
   menuItems,
+  categories,
 }: {
   orders: Order[];
   selectedDate: string;
   menuItems: MenuItem[];
+  categories: CatDef[];
 }) {
   const { showError } = useToast();
   const [selectedHourTab, setSelectedHourTab] = useState<string>("");
@@ -223,19 +225,44 @@ export default function DashboardView({
         {!hasData ? (
           <p className="text-stone-400 text-sm text-center py-8">データがありません</p>
         ) : (
-          <div className="flex items-end gap-1.5 sm:gap-2 h-40 mt-6 pt-6 border-b border-stone-200">
-            {stats.hourlyData.map(([time, count]) => {
-              const heightPercent = (count / stats.maxHourlyCount) * 100;
-              return (
-                <div key={time} className="flex flex-col items-center flex-1 group relative h-full justify-end">
-                  <div className="opacity-0 group-hover:opacity-100 absolute -top-7 bg-stone-900 text-white text-[10px] px-2 py-1 rounded transition-opacity whitespace-nowrap z-10 pointer-events-none tnum">
-                    {count}件
-                  </div>
-                  <div className="w-full bg-stone-200 group-hover:bg-[#6b7e9d] transition-colors rounded-t-[3px] min-h-[3px]" style={{ height: `${heightPercent}%` }}></div>
-                  <span className="text-[10px] text-stone-400 mt-2 font-mono tnum whitespace-nowrap">{time}</span>
+          <div className="mt-4">
+            <div className="flex gap-2">
+              <div className="flex flex-col justify-between h-44 text-[9px] text-stone-300 font-mono tnum text-right shrink-0 w-6 leading-none">
+                <span>{stats.maxHourlyCount}</span>
+                <span>{Math.round(stats.maxHourlyCount / 2)}</span>
+                <span>0</span>
+              </div>
+              <div className="relative flex-1 h-44">
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                  <div className="border-t border-stone-100"></div>
+                  <div className="border-t border-stone-100"></div>
+                  <div className="border-t border-stone-200"></div>
                 </div>
-              );
-            })}
+                <div className="relative h-full flex items-end gap-1.5 sm:gap-2">
+                  {stats.hourlyData.map(([time, count]) => {
+                    const heightPercent = (count / stats.maxHourlyCount) * 100;
+                    return (
+                      <div key={time} className="flex flex-col items-center flex-1 h-full justify-end group">
+                        <span className="text-[9px] text-stone-400 font-mono tnum mb-0.5 h-3">{count > 0 ? count : ""}</span>
+                        <div
+                          className="w-full bg-stone-200 group-hover:bg-[#6b7e9d] transition-colors rounded-t-[3px] min-h-[2px]"
+                          style={{ height: `${heightPercent}%` }}
+                          title={`${time} ・ ${count}件`}
+                        ></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-1">
+              <div className="w-6 shrink-0"></div>
+              <div className="flex-1 flex gap-1.5 sm:gap-2">
+                {stats.hourlyData.map(([time]) => (
+                  <span key={time} className="flex-1 text-center text-[10px] text-stone-400 font-mono tnum">{time}</span>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -403,7 +430,7 @@ export default function DashboardView({
         </div>
       </div>
 
-      {editingOrder && <OrderEditModal order={editingOrder} menuItems={menuItems} onClose={() => setEditingOrder(null)} />}
+      {editingOrder && <OrderEditModal order={editingOrder} menuItems={menuItems} categories={categories} onClose={() => setEditingOrder(null)} />}
     </div>
   );
 }

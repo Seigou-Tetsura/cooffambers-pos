@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { collection, query, where, orderBy, onSnapshot, doc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Mode, MenuItem, RawMenuItem, Order } from "../lib/types";
+import { Mode, MenuItem, RawMenuItem, Order, CatDef, DEFAULT_CATEGORIES } from "../lib/types";
 import { parseToNumber } from "../lib/utils";
 import { ToastProvider } from "../lib/toast";
 import { InfoTip } from "../lib/info";
@@ -31,6 +31,7 @@ export default function App() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<CatDef[]>(DEFAULT_CATEGORIES);
   const [useTicket, setUseTicket] = useState(false);
   const [showAvgTime, setShowAvgTime] = useState(false);
 
@@ -74,10 +75,17 @@ export default function App() {
           soldOut: Boolean(item.soldOut),
         }));
         setMenuItems(safeItems);
+        const rawCats = docSnap.data().categories as CatDef[] | undefined;
+        setCategories(
+          Array.isArray(rawCats) && rawCats.length
+            ? rawCats.map((c) => ({ id: String(c.id), name: String(c.name), hasTemp: Boolean(c.hasTemp) }))
+            : DEFAULT_CATEGORIES
+        );
         setUseTicket(docSnap.data().useTicket || false);
         setShowAvgTime(docSnap.data().showAvgTime || false);
       } else {
         setMenuItems([]);
+        setCategories(DEFAULT_CATEGORIES);
         setUseTicket(false);
         setShowAvgTime(false);
       }
@@ -184,6 +192,7 @@ export default function App() {
             <CashierView
               selectedDate={selectedDate}
               menuItems={menuItems}
+              categories={categories}
               isMenuLoading={isMenuLoading}
               useTicket={useTicket}
               showAvgTime={showAvgTime}
@@ -193,9 +202,9 @@ export default function App() {
             />
           )}
           {mode === "barista" && <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} selectedDate={selectedDate} />}
-          {mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} menuItems={menuItems} />}
+          {mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} menuItems={menuItems} categories={categories} />}
           {mode === "period" && <PeriodView />}
-          {mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} useTicket={useTicket} showAvgTime={showAvgTime} />}
+          {mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} categories={categories} useTicket={useTicket} showAvgTime={showAvgTime} />}
         </main>
       </div>
     </ToastProvider>

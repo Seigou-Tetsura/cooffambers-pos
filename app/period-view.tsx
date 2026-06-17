@@ -145,20 +145,46 @@ export default function PeriodView() {
           {/* 日次売上推移 */}
           <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-2">日次売上推移</h3>
-            <div className="flex items-end gap-2 sm:gap-3 h-48 mt-6 pt-6 border-b border-stone-200 overflow-x-auto">
-              {agg.dailyArr.map(([date, d]) => {
-                const heightPercent = (d.sales / agg.maxDaily) * 100;
-                const md = date.slice(5);
-                return (
-                  <div key={date} className="flex flex-col items-center flex-1 min-w-[34px] group relative h-full justify-end">
-                    <div className="opacity-0 group-hover:opacity-100 absolute -top-7 bg-stone-900 text-white text-[10px] px-2 py-1 rounded transition-opacity whitespace-nowrap z-10 pointer-events-none tnum">
-                      ¥{d.sales.toLocaleString()}
-                    </div>
-                    <div className="w-full bg-stone-200 group-hover:bg-[#8a7390] transition-colors rounded-t-[3px] min-h-[3px]" style={{ height: `${heightPercent}%` }}></div>
-                    <span className="text-[10px] text-stone-400 mt-2 font-mono tnum whitespace-nowrap">{md}</span>
+            <div className="mt-4">
+              <div className="flex gap-2">
+                <div className="flex flex-col justify-between h-48 text-[9px] text-stone-300 font-mono tnum text-right shrink-0 w-14 leading-none">
+                  <span>¥{agg.maxDaily.toLocaleString()}</span>
+                  <span>¥{Math.round(agg.maxDaily / 2).toLocaleString()}</span>
+                  <span>¥0</span>
+                </div>
+                <div className="relative flex-1 h-48">
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                    <div className="border-t border-stone-100"></div>
+                    <div className="border-t border-stone-100"></div>
+                    <div className="border-t border-stone-200"></div>
                   </div>
-                );
-              })}
+                  <div className="relative h-full flex items-end gap-2 sm:gap-3">
+                    {agg.dailyArr.map(([date, d]) => {
+                      const heightPercent = (d.sales / agg.maxDaily) * 100;
+                      const md = date.slice(5);
+                      return (
+                        <div key={date} className="flex flex-col items-center flex-1 min-w-[28px] h-full justify-end group">
+                          <div
+                            className="w-full bg-stone-200 group-hover:bg-[#8a7390] transition-colors rounded-t-[3px] min-h-[2px]"
+                            style={{ height: `${heightPercent}%` }}
+                            title={`${md} ・ ¥${d.sales.toLocaleString()}`}
+                          ></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-1">
+                <div className="w-14 shrink-0"></div>
+                <div className="flex-1 flex gap-2 sm:gap-3">
+                  {agg.dailyArr.map(([date]) => (
+                    <span key={date} className="flex-1 min-w-[28px] text-center text-[10px] text-stone-400 font-mono tnum">
+                      {date.slice(5)}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
