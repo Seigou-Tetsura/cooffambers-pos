@@ -60,7 +60,7 @@ export interface CompletionStats {
   byHourCount: Record<number, number>; // 時間帯ごとの件数
 }
 
-export function computeCompletion(orders: Order[]): CompletionStats {
+export function computeCompletion(orders: Order[], opts?: { sinceMs?: number }): CompletionStats {
   let total = 0;
   let n = 0;
   const sum: Record<number, number> = {};
@@ -68,6 +68,8 @@ export function computeCompletion(orders: Order[]): CompletionStats {
 
   for (const o of orders) {
     if (o.status !== "completed" || !o.createdAt || !o.completedAt) continue;
+    // 直近◯分など、完了時刻で期間を絞り込む（opts.sinceMs 以降のみ集計）
+    if (opts?.sinceMs !== undefined && o.completedAt.seconds * 1000 < opts.sinceMs) continue;
     const dur = o.completedAt.seconds - o.createdAt.seconds;
     if (dur < 0) continue;
     total += dur;

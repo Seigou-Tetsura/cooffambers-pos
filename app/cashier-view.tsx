@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { CartItem, MenuItem, Order, CatDef } from "../lib/types";
@@ -39,8 +39,16 @@ export default function CashierView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { showError, showToast } = useToast();
 
-  // 本日の平均提供時間（受注→提供）
-  const completion = useMemo(() => computeCompletion(orders), [orders]);
+  // 直近30分の平均提供時間を出すため、現在時刻を定期更新（30秒ごと）
+  const RECENT_WINDOW_MS = 30 * 60 * 1000;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 直近30分以内に提供完了した注文の平均（受注→提供）
+  const completion = useMemo(() => computeCompletion(orders, { sinceMs: now - RECENT_WINDOW_MS }), [orders, now, RECENT_WINDOW_MS]);
   // HOT/ICE を扱うカテゴリ名の集合
   const tempCategoryNames = useMemo(() => new Set(categories.filter((c) => c.hasTemp).map((c) => c.name)), [categories]);
 
@@ -143,11 +151,11 @@ export default function CashierView({
       {showAvgTime && (
         <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] px-5 py-3 flex items-center justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1.5">
-            平均提供時間
-            <InfoTip text="本日の完了済み注文の、受注から提供までの平均時間です。設定でオン / オフを切り替えられます。" align="left" />
+            直近30分の平均提供時間
+            <InfoTip text="直近30分以内に提供完了した注文の、受注から提供までの平均時間です。時間が経つと古い注文は自動的に集計から外れます。設定でオン / オフを切り替えられます。" align="left" />
           </span>
           {completion.avgSec === null ? (
-            <span className="text-sm text-stone-400">まだ完了データがありません</span>
+            <span className="text-sm text-stone-400">直近30分の完了がありません</span>
           ) : (
             <span className="text-lg font-semibold text-stone-900 tnum">
               {formatElapsed(completion.avgSec)}
