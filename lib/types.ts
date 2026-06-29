@@ -13,8 +13,8 @@ export interface CatDef {
 }
 
 export const DEFAULT_CATEGORIES: CatDef[] = [
-  { id: "coffee", name: "コーヒー", hasTemp: true },
-  { id: "snack", name: "お菓子", hasTemp: false },
+  { id: "drink", name: "ドリンク", hasTemp: false },
+  { id: "food", name: "フード", hasTemp: false },
   { id: "other", name: "その他", hasTemp: false },
 ];
 
