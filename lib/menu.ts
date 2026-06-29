@@ -1,12 +1,10 @@
-import { doc, runTransaction, deleteField } from "firebase/firestore";
+import { doc, runTransaction } from "firebase/firestore";
 import { db } from "./firebase";
 import { RawMenuItem, CatDef, DEFAULT_CATEGORIES } from "./types";
 
-// undefinedフィールドをFirestoreのdeleteField()に変換（undefinedはFirestore非対応）
+// undefined値を除去（Firestoreは配列要素内でundefinedもdeleteField()も非対応）
 function sanitizeItem(item: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(item).map(([k, v]) => [k, v === undefined ? deleteField() : v])
-  );
+  return Object.fromEntries(Object.entries(item).filter(([, v]) => v !== undefined));
 }
 
 // ==========================================
