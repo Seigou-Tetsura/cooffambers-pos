@@ -1,11 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MenuItem, CatDef } from "../lib/types";
 import { parseToNumber } from "../lib/utils";
 import { mutateMenu } from "../lib/menu";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
+
+// 日本語IME変換中にonChangeが発火するのを防ぐhook
+function useJapaneseInput(setValue: (v: string) => void) {
+  const composing = useRef(false);
+  return {
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!composing.current) setValue(e.target.value);
+    },
+    onCompositionStart: () => { composing.current = true; },
+    onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => {
+      composing.current = false;
+      setValue(e.currentTarget.value);
+    },
+  };
+}
 
 const PriceInput = ({ label, placeholder, value, onChange, color }: {
   label: string; placeholder: string; value: string;
@@ -73,6 +88,11 @@ export default function SettingsView({
 
   const itemCat = categories.some((c) => c.name === newItemCategory) ? newItemCategory : categories[0]?.name ?? "";
 
+  const newItemNameInput = useJapaneseInput(setNewItemName);
+  const newCatNameInput = useJapaneseInput(setNewCatName);
+  const editNameInput = useJapaneseInput(setEditName);
+  const editCatNameInput = useJapaneseInput(setEditCatName);
+
   const run = async (fn: () => Promise<void>) => {
     setIsSaving(true);
     try {
@@ -88,14 +108,14 @@ export default function SettingsView({
   // ---- メニュー ----
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
-    const price = parseToNumber(newItemPrice);
-    if (price <= 0) {
-      showError("価格は1円以上に設定してください。");
-      return;
-    }
     if (!newItemName.trim() || !itemCat) return;
     const hotPrice = newItemHotPrice ? parseToNumber(newItemHotPrice) : undefined;
     const icePrice = newItemIcePrice ? parseToNumber(newItemIcePrice) : undefined;
+    const price = parseToNumber(newItemPrice);
+    if (!hotPrice && !icePrice && price <= 0) {
+      showError("通常価格、またはHOT/ICEいずれかの価格を入力してください。");
+      return;
+    }
     run(() =>
       mutateMenu(selectedDate, {
         type: "add",
@@ -197,7 +217,7 @@ export default function SettingsView({
             type="text"
             placeholder="新しいカテゴリ名"
             value={newCatName}
-            onChange={(e) => setNewCatName(e.target.value)}
+            {...newCatNameInput}
             className="flex-1 px-2.5 py-2 border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm"
           />
           <button type="submit" disabled={isSaving || !newCatName.trim()} className="bg-stone-900 hover:bg-stone-800 text-white font-medium px-5 py-2 rounded-lg text-sm whitespace-nowrap shrink-0 transition-colors disabled:bg-stone-200 disabled:text-stone-400">
@@ -216,7 +236,7 @@ export default function SettingsView({
                 {editCatId === cat.id ? (
                   <input
                     value={editCatName}
-                    onChange={(e) => setEditCatName(e.target.value)}
+                    {...editCatNameInput}
                     onKeyDown={(e) => e.key === "Enter" && saveCatName(cat.id)}
                     autoFocus
                     className="flex-1 min-w-0 px-2 py-1 border border-stone-300 rounded text-sm focus:border-[#a8823f] focus:outline-none"
@@ -261,7 +281,7 @@ export default function SettingsView({
                 <option key={c.id} value={c.name}>{c.name}</option>
               ))}
             </select>
-            <input type="text" placeholder="商品名" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="flex-1 px-2.5 py-2 border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm" />
+            <input type="text" placeholder="商品名" value={newItemName} {...newItemNameInput} className="flex-1 px-2.5 py-2 border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm" />
             <button type="submit" disabled={isSaving || !newItemName.trim() || (!newItemPrice.trim() && !newItemHotPrice.trim() && !newItemIcePrice.trim())} className="bg-stone-900 hover:bg-stone-800 text-white font-medium px-5 py-2 rounded-lg text-sm whitespace-nowrap shrink-0 transition-colors disabled:bg-stone-200 disabled:text-stone-400">
               追加
             </button>
@@ -289,7 +309,7 @@ export default function SettingsView({
                     <span className="text-[10px] uppercase tracking-wider bg-stone-100 px-2 py-0.5 rounded text-stone-500 font-semibold shrink-0">{item.category}</span>
                     {editId === item.id ? (
                       <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                        <input value={editName} onChange={(e) => setEditName(e.target.value)} className="min-w-0 px-2 py-1 border border-stone-300 rounded text-sm focus:border-[#a8823f] focus:outline-none" />
+                        <input value={editName} {...editNameInput} className="min-w-0 px-2 py-1 border border-stone-300 rounded text-sm focus:border-[#a8823f] focus:outline-none" />
                         <div className="flex flex-wrap gap-2 items-center">
                           <PriceInput label="通常" placeholder="HOT/ICEなし" value={editPrice} onChange={setEditPrice} />
                           <PriceInput label="HOT" placeholder="HOT価格" value={editHotPrice} onChange={setEditHotPrice} color="red" />
