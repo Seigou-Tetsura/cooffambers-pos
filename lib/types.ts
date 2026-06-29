@@ -18,12 +18,15 @@ export const DEFAULT_CATEGORIES: CatDef[] = [
   { id: "other", name: "その他", hasTemp: false },
 ];
 
+export type TempOption = "Hot" | "Ice";
+
 export interface MenuItem {
   id: string;
   name: string;
   price: number;
   category: string; // カテゴリ名
   soldOut: boolean;
+  allowedTemps?: TempOption[]; // 未設定 = カテゴリの hasTemp に従い両方対応
 }
 
 // Firestore から読み込んだ生データ（型が不定なので一度受ける）
@@ -33,6 +36,7 @@ export interface RawMenuItem {
   price: string | number;
   category: string;
   soldOut?: boolean;
+  allowedTemps?: TempOption[];
 }
 
 export interface CartItem {

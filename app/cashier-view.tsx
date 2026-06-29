@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { CartItem, MenuItem, Order, CatDef } from "../lib/types";
+import { CartItem, MenuItem, Order, CatDef, TempOption } from "../lib/types";
 import { parseToNumber, computeCompletion, formatElapsed } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
@@ -52,10 +52,17 @@ export default function CashierView({
   // HOT/ICE を扱うカテゴリ名の集合
   const tempCategoryNames = useMemo(() => new Set(categories.filter((c) => c.hasTemp).map((c) => c.name)), [categories]);
 
+  const resolveTemp = (item: MenuItem): TempOption | undefined => {
+    if (!tempCategoryNames.has(item.category)) return undefined;
+    const allowed = item.allowedTemps;
+    if (!allowed || allowed.length === 0 || allowed.length === 2) return selectedTemp;
+    return allowed[0]; // Hot のみ or Ice のみ
+  };
+
   const addToCart = (item: MenuItem) => {
     if (item.soldOut) return;
-    const isTemp = tempCategoryNames.has(item.category);
-    const cartItemId = `${item.id}-${isTemp ? selectedTemp : "none"}`;
+    const temp = resolveTemp(item);
+    const cartItemId = `${item.id}-${temp ?? "none"}`;
 
     setCart((prev) => {
       const existingIndex = prev.findIndex((i) => i.id === cartItemId);
@@ -72,7 +79,7 @@ export default function CashierView({
           price: item.price,
           category: item.category,
           quantity: 1,
-          ...(isTemp && { temperature: selectedTemp }),
+          ...(temp !== undefined && { temperature: temp }),
         },
       ];
     });
@@ -173,14 +180,19 @@ export default function CashierView({
             if (itemsInCategory.length === 0) return null;
             const isTemp = category.hasTemp;
 
+            const hasDualTempItem = isTemp && itemsInCategory.some((item) => {
+              const allowed = item.allowedTemps;
+              return !allowed || allowed.length === 0 || allowed.length >= 2;
+            });
+
             return (
               <section key={category.id} className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1.5">
                     {category.name}
-                    {isTemp && <InfoTip text="商品を押すとカートに追加されます。右のHOT / ICEを選んでから押すと、その温度で追加されます。" align="left" />}
+                    {isTemp && <InfoTip text="商品を押すとカートに追加されます。HOT/ICE両対応の商品は右のトグルで温度を選んでから押してください。HOTのみ・ICEのみの商品は自動で設定されます。" align="left" />}
                   </h2>
-                  {isTemp && (
+                  {hasDualTempItem && (
                     <div className="flex items-center gap-1.5">
                       <div className="flex bg-stone-100 rounded-lg p-0.5 text-xs font-bold">
                         <button
@@ -196,7 +208,7 @@ export default function CashierView({
                           ICE
                         </button>
                       </div>
-                      <InfoTip text="温度を選びます。選んだ温度で、下の商品がカートに入ります。" align="right" />
+                      <InfoTip text="温度を選びます。選んだ温度で、HOT/ICE両対応の商品がカートに入ります。" align="right" />
                     </div>
                   )}
                 </div>
@@ -212,13 +224,20 @@ export default function CashierView({
                           : "bg-white border-stone-200 hover:border-[#8a5a3b]/50 hover:bg-[#8a5a3b]/[0.03] active:scale-[0.99]"
                       }`}
                     >
-                      <span className={`text-sm font-medium ${item.soldOut ? "text-stone-400 line-through" : "text-stone-800"}`}>
-                        {item.name}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`text-sm font-medium truncate ${item.soldOut ? "text-stone-400 line-through" : "text-stone-800"}`}>
+                          {item.name}
+                        </span>
+                        {isTemp && item.allowedTemps && item.allowedTemps.length === 1 && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${item.allowedTemps[0] === "Hot" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                            {item.allowedTemps[0]?.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
                       {item.soldOut ? (
-                        <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">在庫なし</span>
+                        <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold shrink-0">在庫なし</span>
                       ) : (
-                        <span className="text-xs font-mono font-semibold text-stone-500 tnum">¥{item.price.toLocaleString()}</span>
+                        <span className="text-xs font-mono font-semibold text-stone-500 tnum shrink-0">¥{item.price.toLocaleString()}</span>
                       )}
                     </button>
                   ))}
