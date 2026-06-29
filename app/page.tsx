@@ -73,6 +73,8 @@ export default function App() {
           price: parseToNumber(item.price),
           category: String(item.category),
           soldOut: Boolean(item.soldOut),
+          ...(item.hotPrice != null && { hotPrice: parseToNumber(item.hotPrice) }),
+          ...(item.icePrice != null && { icePrice: parseToNumber(item.icePrice) }),
         }));
         setMenuItems(safeItems);
         const rawCats = docSnap.data().categories as CatDef[] | undefined;

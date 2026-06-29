@@ -1,11 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { MenuItem, CatDef, TempOption } from "../lib/types";
+import { MenuItem, CatDef } from "../lib/types";
 import { parseToNumber } from "../lib/utils";
 import { mutateMenu } from "../lib/menu";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
+
+const PriceInput = ({ label, placeholder, value, onChange, color }: {
+  label: string; placeholder: string; value: string;
+  onChange: (v: string) => void; color?: "red" | "blue";
+}) => (
+  <div className="flex items-center gap-1">
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+      color === "red" ? "bg-red-100 text-red-700" : color === "blue" ? "bg-blue-100 text-blue-700" : "bg-stone-100 text-stone-500"
+    }`}>{label}</span>
+    <div className="flex items-center bg-white border border-stone-300 rounded-md focus-within:border-[#a8823f] overflow-hidden">
+      <span className="px-1.5 text-stone-400 text-xs font-mono border-r border-stone-200 bg-stone-50">¥</span>
+      <input type="number" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
+        className="w-20 px-2 py-1.5 focus:outline-none text-sm font-mono tnum" />
+    </div>
+  </div>
+);
 
 const Chevron = ({ up = false }: { up?: boolean }) => (
   <svg viewBox="0 0 12 12" className={`w-3 h-3 ${up ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -37,13 +53,15 @@ export default function SettingsView({
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [newItemCategory, setNewItemCategory] = useState("");
-  const [newItemTemps, setNewItemTemps] = useState<TempOption[]>(["Hot", "Ice"]);
+  const [newItemHotPrice, setNewItemHotPrice] = useState("");
+  const [newItemIcePrice, setNewItemIcePrice] = useState("");
 
   // メニュー行のインライン編集
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPrice, setEditPrice] = useState("");
-  const [editTemps, setEditTemps] = useState<TempOption[]>(["Hot", "Ice"]);
+  const [editHotPrice, setEditHotPrice] = useState("");
+  const [editIcePrice, setEditIcePrice] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // カテゴリ
@@ -54,10 +72,6 @@ export default function SettingsView({
   const [confirmDelCatId, setConfirmDelCatId] = useState<string | null>(null);
 
   const itemCat = categories.some((c) => c.name === newItemCategory) ? newItemCategory : categories[0]?.name ?? "";
-  const itemCatHasTemp = categories.find((c) => c.name === itemCat)?.hasTemp ?? false;
-
-  const toggleTemp = (temps: TempOption[], t: TempOption): TempOption[] =>
-    temps.includes(t) ? temps.filter((x) => x !== t) : [...temps, t];
 
   const run = async (fn: () => Promise<void>) => {
     setIsSaving(true);
@@ -80,34 +94,41 @@ export default function SettingsView({
       return;
     }
     if (!newItemName.trim() || !itemCat) return;
-    const allowedTemps = itemCatHasTemp ? (newItemTemps.length > 0 ? newItemTemps : ["Hot", "Ice"] as TempOption[]) : undefined;
+    const hotPrice = newItemHotPrice ? parseToNumber(newItemHotPrice) : undefined;
+    const icePrice = newItemIcePrice ? parseToNumber(newItemIcePrice) : undefined;
     run(() =>
       mutateMenu(selectedDate, {
         type: "add",
-        item: { id: Date.now().toString(), name: newItemName.trim(), price, category: itemCat, soldOut: false, allowedTemps },
+        item: { id: Date.now().toString(), name: newItemName.trim(), price, category: itemCat, soldOut: false, hotPrice, icePrice },
       })
     );
     setNewItemName("");
     setNewItemPrice("");
-    setNewItemTemps(["Hot", "Ice"]);
+    setNewItemHotPrice("");
+    setNewItemIcePrice("");
   };
 
   const startEdit = (item: MenuItem) => {
     setEditId(item.id);
     setEditName(item.name);
     setEditPrice(String(item.price));
-    setEditTemps(item.allowedTemps ?? ["Hot", "Ice"]);
+    setEditHotPrice(item.hotPrice != null ? String(item.hotPrice) : "");
+    setEditIcePrice(item.icePrice != null ? String(item.icePrice) : "");
     setConfirmDeleteId(null);
   };
-  const saveEdit = (id: string, item: MenuItem) => {
+  const saveEdit = (id: string) => {
     const price = parseToNumber(editPrice);
-    if (!editName.trim() || price <= 0) {
-      showError("商品名と1円以上の価格を入力してください。");
+    const hotPrice = editHotPrice ? parseToNumber(editHotPrice) : undefined;
+    const icePrice = editIcePrice ? parseToNumber(editIcePrice) : undefined;
+    if (!editName.trim()) {
+      showError("商品名を入力してください。");
       return;
     }
-    const catHasTemp = categories.find((c) => c.name === item.category)?.hasTemp ?? false;
-    const allowedTemps = catHasTemp ? (editTemps.length > 0 ? editTemps : ["Hot", "Ice"] as TempOption[]) : undefined;
-    run(() => mutateMenu(selectedDate, { type: "editItem", id, name: editName.trim(), price, allowedTemps }));
+    if (!hotPrice && !icePrice && price <= 0) {
+      showError("通常価格、またはHOT/ICEいずれかの価格を入力してください。");
+      return;
+    }
+    run(() => mutateMenu(selectedDate, { type: "editItem", id, name: editName.trim(), price, hotPrice, icePrice }));
     setEditId(null);
   };
 
@@ -179,10 +200,6 @@ export default function SettingsView({
             onChange={(e) => setNewCatName(e.target.value)}
             className="flex-1 px-2.5 py-2 border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm"
           />
-          <label className="flex items-center gap-2 px-3 text-sm text-stone-600 select-none cursor-pointer">
-            <input type="checkbox" checked={newCatTemp} onChange={(e) => setNewCatTemp(e.target.checked)} className="accent-[#a8823f] w-4 h-4" />
-            HOT / ICE あり
-          </label>
           <button type="submit" disabled={isSaving || !newCatName.trim()} className="bg-stone-900 hover:bg-stone-800 text-white font-medium px-5 py-2 rounded-lg text-sm whitespace-nowrap shrink-0 transition-colors disabled:bg-stone-200 disabled:text-stone-400">
             カテゴリ追加
           </button>
@@ -209,14 +226,6 @@ export default function SettingsView({
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => run(() => mutateMenu(selectedDate, { type: "toggleCategoryTemp", id: cat.id, value: !cat.hasTemp }))}
-                  disabled={isSaving}
-                  className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-full transition-colors disabled:opacity-50 ${cat.hasTemp ? "bg-[#8a5a3b]/10 text-[#8a5a3b]" : "bg-stone-100 text-stone-400"}`}
-                  title="HOT/ICEの有無"
-                >
-                  HOT/ICE
-                </button>
                 {editCatId === cat.id ? (
                   <>
                     <button onClick={() => saveCatName(cat.id)} disabled={isSaving} className="bg-stone-900 text-white font-medium text-[10px] px-2.5 py-1 rounded hover:bg-stone-800 disabled:opacity-50">保存</button>
@@ -247,36 +256,21 @@ export default function SettingsView({
         </h2>
         <form onSubmit={handleAddItem} className="flex flex-col gap-2.5 mb-6 bg-stone-50 p-3.5 rounded-lg border border-stone-200">
           <div className="flex flex-col sm:flex-row gap-2.5">
-            <select value={itemCat} onChange={(e) => { setNewItemCategory(e.target.value); setNewItemTemps(["Hot", "Ice"]); }} className="w-full sm:w-1/3 px-2.5 py-2 border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm bg-white font-medium">
+            <select value={itemCat} onChange={(e) => setNewItemCategory(e.target.value)} className="w-full sm:w-1/3 px-2.5 py-2 border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm bg-white font-medium">
               {categories.map((c) => (
                 <option key={c.id} value={c.name}>{c.name}</option>
               ))}
             </select>
             <input type="text" placeholder="商品名" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="flex-1 px-2.5 py-2 border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm" />
-            <div className="flex items-center bg-white border border-stone-300 rounded-md focus-within:border-[#a8823f] overflow-hidden">
-              <span className="px-2.5 text-stone-400 text-sm font-mono border-r border-stone-300 bg-stone-50">¥</span>
-              <input type="number" placeholder="価格" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} className="w-24 px-2.5 py-2 focus:outline-none text-sm font-mono tnum" />
-            </div>
-            <button type="submit" disabled={isSaving || !newItemName.trim() || !newItemPrice.trim()} className="bg-stone-900 hover:bg-stone-800 text-white font-medium px-5 py-2 rounded-lg text-sm whitespace-nowrap shrink-0 transition-colors disabled:bg-stone-200 disabled:text-stone-400">
+            <button type="submit" disabled={isSaving || !newItemName.trim() || (!newItemPrice.trim() && !newItemHotPrice.trim() && !newItemIcePrice.trim())} className="bg-stone-900 hover:bg-stone-800 text-white font-medium px-5 py-2 rounded-lg text-sm whitespace-nowrap shrink-0 transition-colors disabled:bg-stone-200 disabled:text-stone-400">
               追加
             </button>
           </div>
-          {itemCatHasTemp && (
-            <div className="flex items-center gap-3 px-1 text-sm text-stone-600">
-              <span className="text-xs font-semibold text-stone-500">提供温度:</span>
-              {(["Hot", "Ice"] as TempOption[]).map((t) => (
-                <label key={t} className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={newItemTemps.includes(t)}
-                    onChange={() => setNewItemTemps((prev) => toggleTemp(prev, t))}
-                    className="accent-[#a8823f] w-4 h-4"
-                  />
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t === "Hot" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>{t.toUpperCase()}</span>
-                </label>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2.5 items-center px-0.5">
+            <PriceInput label="通常" placeholder="HOT/ICE なし" value={newItemPrice} onChange={setNewItemPrice} />
+            <PriceInput label="HOT" placeholder="HOT価格" value={newItemHotPrice} onChange={setNewItemHotPrice} color="red" />
+            <PriceInput label="ICE" placeholder="ICE価格" value={newItemIcePrice} onChange={setNewItemIcePrice} color="blue" />
+          </div>
         </form>
 
         <div className="space-y-3">
@@ -295,46 +289,34 @@ export default function SettingsView({
                     <span className="text-[10px] uppercase tracking-wider bg-stone-100 px-2 py-0.5 rounded text-stone-500 font-semibold shrink-0">{item.category}</span>
                     {editId === item.id ? (
                       <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <input value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1 min-w-0 px-2 py-1 border border-stone-300 rounded text-sm focus:border-[#a8823f] focus:outline-none" />
-                          <div className="flex items-center bg-white border border-stone-300 rounded overflow-hidden shrink-0">
-                            <span className="px-1.5 text-stone-400 text-xs font-mono">¥</span>
-                            <input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} className="w-16 px-1 py-1 focus:outline-none text-sm font-mono tnum" />
-                          </div>
+                        <input value={editName} onChange={(e) => setEditName(e.target.value)} className="min-w-0 px-2 py-1 border border-stone-300 rounded text-sm focus:border-[#a8823f] focus:outline-none" />
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <PriceInput label="通常" placeholder="HOT/ICEなし" value={editPrice} onChange={setEditPrice} />
+                          <PriceInput label="HOT" placeholder="HOT価格" value={editHotPrice} onChange={setEditHotPrice} color="red" />
+                          <PriceInput label="ICE" placeholder="ICE価格" value={editIcePrice} onChange={setEditIcePrice} color="blue" />
                         </div>
-                        {categories.find((c) => c.name === item.category)?.hasTemp && (
-                          <div className="flex items-center gap-2 px-0.5">
-                            <span className="text-[10px] font-semibold text-stone-400">提供温度:</span>
-                            {(["Hot", "Ice"] as TempOption[]).map((t) => (
-                              <label key={t} className="flex items-center gap-1 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={editTemps.includes(t)}
-                                  onChange={() => setEditTemps((prev) => toggleTemp(prev, t))}
-                                  className="accent-[#a8823f] w-3.5 h-3.5"
-                                />
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t === "Hot" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>{t.toUpperCase()}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <>
                         <span className={`text-sm font-medium truncate ${item.soldOut ? "text-red-400 line-through" : "text-stone-800"}`}>{item.name}</span>
-                        {categories.find((c) => c.name === item.category)?.hasTemp && item.allowedTemps && item.allowedTemps.length < 2 && (
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${item.allowedTemps[0] === "Hot" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
-                            {item.allowedTemps[0]?.toUpperCase()}のみ
-                          </span>
-                        )}
-                        <span className="text-sm font-mono font-semibold text-stone-500 tnum shrink-0">¥{item.price.toLocaleString()}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {item.hotPrice != null && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">HOT ¥{item.hotPrice.toLocaleString()}</span>
+                          )}
+                          {item.icePrice != null && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">ICE ¥{item.icePrice.toLocaleString()}</span>
+                          )}
+                          {item.hotPrice == null && item.icePrice == null && (
+                            <span className="text-sm font-mono font-semibold text-stone-500 tnum">¥{item.price.toLocaleString()}</span>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {editId === item.id ? (
                       <>
-                        <button onClick={() => saveEdit(item.id, item)} disabled={isSaving} className="bg-stone-900 text-white font-medium text-[10px] px-2.5 py-1 rounded hover:bg-stone-800 disabled:opacity-50">保存</button>
+                        <button onClick={() => saveEdit(item.id)} disabled={isSaving} className="bg-stone-900 text-white font-medium text-[10px] px-2.5 py-1 rounded hover:bg-stone-800 disabled:opacity-50">保存</button>
                         <button onClick={() => setEditId(null)} className="bg-white text-stone-500 border border-stone-200 font-medium text-[10px] px-2.5 py-1 rounded hover:bg-stone-50">取消</button>
                       </>
                     ) : confirmDeleteId === item.id ? (

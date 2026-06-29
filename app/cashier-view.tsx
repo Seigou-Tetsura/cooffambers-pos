@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { CartItem, MenuItem, Order, CatDef, TempOption } from "../lib/types";
+
 import { parseToNumber, computeCompletion, formatElapsed } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
@@ -34,7 +35,6 @@ export default function CashierView({
   setTicketNumber: (value: string) => void;
 }) {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedTemp, setSelectedTemp] = useState<"Hot" | "Ice">("Hot");
   const [cashReceived, setCashReceived] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { showError, showToast } = useToast();
@@ -49,19 +49,9 @@ export default function CashierView({
 
   // 直近30分以内に提供完了した注文の平均（受注→提供）
   const completion = useMemo(() => computeCompletion(orders, { sinceMs: now - RECENT_WINDOW_MS }), [orders, now, RECENT_WINDOW_MS]);
-  // HOT/ICE を扱うカテゴリ名の集合
-  const tempCategoryNames = useMemo(() => new Set(categories.filter((c) => c.hasTemp).map((c) => c.name)), [categories]);
-
-  const resolveTemp = (item: MenuItem): TempOption | undefined => {
-    if (!tempCategoryNames.has(item.category)) return undefined;
-    const allowed = item.allowedTemps;
-    if (!allowed || allowed.length === 0 || allowed.length === 2) return selectedTemp;
-    return allowed[0]; // Hot のみ or Ice のみ
-  };
-
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: MenuItem, temp?: TempOption) => {
     if (item.soldOut) return;
-    const temp = resolveTemp(item);
+    const price = temp === "Hot" ? (item.hotPrice ?? item.price) : temp === "Ice" ? (item.icePrice ?? item.price) : item.price;
     const cartItemId = `${item.id}-${temp ?? "none"}`;
 
     setCart((prev) => {
@@ -73,14 +63,7 @@ export default function CashierView({
       }
       return [
         ...prev,
-        {
-          id: cartItemId,
-          name: item.name,
-          price: item.price,
-          category: item.category,
-          quantity: 1,
-          ...(temp !== undefined && { temperature: temp }),
-        },
+        { id: cartItemId, name: item.name, price, category: item.category, quantity: 1, ...(temp && { temperature: temp }) },
       ];
     });
   };
@@ -178,69 +161,71 @@ export default function CashierView({
           {categories.map((category) => {
             const itemsInCategory = menuItems.filter((item) => item.category === category.name);
             if (itemsInCategory.length === 0) return null;
-            const isTemp = category.hasTemp;
-
-            const hasDualTempItem = isTemp && itemsInCategory.some((item) => {
-              const allowed = item.allowedTemps;
-              return !allowed || allowed.length === 0 || allowed.length >= 2;
-            });
 
             return (
               <section key={category.id} className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1.5">
-                    {category.name}
-                    {isTemp && <InfoTip text="商品を押すとカートに追加されます。HOT/ICE両対応の商品は右のトグルで温度を選んでから押してください。HOTのみ・ICEのみの商品は自動で設定されます。" align="left" />}
-                  </h2>
-                  {hasDualTempItem && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex bg-stone-100 rounded-lg p-0.5 text-xs font-bold">
-                        <button
-                          onClick={() => setSelectedTemp("Hot")}
-                          className={`px-4 py-1.5 rounded-md transition-all ${selectedTemp === "Hot" ? "bg-red-100 text-red-700 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
-                        >
-                          HOT
-                        </button>
-                        <button
-                          onClick={() => setSelectedTemp("Ice")}
-                          className={`px-4 py-1.5 rounded-md transition-all ${selectedTemp === "Ice" ? "bg-blue-100 text-blue-700 shadow-sm" : "text-stone-400 hover:text-stone-600"}`}
-                        >
-                          ICE
-                        </button>
-                      </div>
-                      <InfoTip text="温度を選びます。選んだ温度で、HOT/ICE両対応の商品がカートに入ります。" align="right" />
-                    </div>
-                  )}
-                </div>
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-4">{category.name}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {itemsInCategory.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => addToCart(item)}
-                      disabled={item.soldOut}
-                      className={`group flex justify-between items-center px-4 py-3.5 border rounded-lg text-left transition-all ${
-                        item.soldOut
-                          ? "bg-stone-50 border-stone-200 cursor-not-allowed"
-                          : "bg-white border-stone-200 hover:border-[#8a5a3b]/50 hover:bg-[#8a5a3b]/[0.03] active:scale-[0.99]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`text-sm font-medium truncate ${item.soldOut ? "text-stone-400 line-through" : "text-stone-800"}`}>
-                          {item.name}
-                        </span>
-                        {isTemp && item.allowedTemps && item.allowedTemps.length === 1 && (
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${item.allowedTemps[0] === "Hot" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
-                            {item.allowedTemps[0]?.toUpperCase()}
-                          </span>
+                  {itemsInCategory.map((item) => {
+                    const hasHot = item.hotPrice != null;
+                    const hasIce = item.icePrice != null;
+                    const hasTemp = hasHot || hasIce;
+
+                    if (hasTemp) {
+                      // HOT/ICEボタンを横並びで表示
+                      return (
+                        <div key={item.id} className={`flex flex-col border rounded-lg overflow-hidden ${item.soldOut ? "border-stone-200" : "border-stone-200"}`}>
+                          <div className="px-4 pt-3 pb-1.5 flex justify-between items-center">
+                            <span className={`text-sm font-medium truncate ${item.soldOut ? "text-stone-400 line-through" : "text-stone-800"}`}>{item.name}</span>
+                            {item.soldOut && <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold shrink-0">在庫なし</span>}
+                          </div>
+                          <div className="flex divide-x divide-stone-200 border-t border-stone-100">
+                            {hasHot && (
+                              <button
+                                onClick={() => addToCart(item, "Hot")}
+                                disabled={item.soldOut}
+                                className="flex-1 flex items-center justify-between px-3 py-2.5 bg-white hover:bg-red-50/60 active:scale-[0.99] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">HOT</span>
+                                <span className="text-xs font-mono font-semibold text-stone-500 tnum">¥{item.hotPrice!.toLocaleString()}</span>
+                              </button>
+                            )}
+                            {hasIce && (
+                              <button
+                                onClick={() => addToCart(item, "Ice")}
+                                disabled={item.soldOut}
+                                className="flex-1 flex items-center justify-between px-3 py-2.5 bg-white hover:bg-blue-50/60 active:scale-[0.99] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">ICE</span>
+                                <span className="text-xs font-mono font-semibold text-stone-500 tnum">¥{item.icePrice!.toLocaleString()}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // 通常商品
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => addToCart(item)}
+                        disabled={item.soldOut}
+                        className={`flex justify-between items-center px-4 py-3.5 border rounded-lg text-left transition-all ${
+                          item.soldOut
+                            ? "bg-stone-50 border-stone-200 cursor-not-allowed"
+                            : "bg-white border-stone-200 hover:border-[#8a5a3b]/50 hover:bg-[#8a5a3b]/[0.03] active:scale-[0.99]"
+                        }`}
+                      >
+                        <span className={`text-sm font-medium truncate ${item.soldOut ? "text-stone-400 line-through" : "text-stone-800"}`}>{item.name}</span>
+                        {item.soldOut ? (
+                          <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold shrink-0">在庫なし</span>
+                        ) : (
+                          <span className="text-xs font-mono font-semibold text-stone-500 tnum shrink-0">¥{item.price.toLocaleString()}</span>
                         )}
-                      </div>
-                      {item.soldOut ? (
-                        <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold shrink-0">在庫なし</span>
-                      ) : (
-                        <span className="text-xs font-mono font-semibold text-stone-500 tnum shrink-0">¥{item.price.toLocaleString()}</span>
-                      )}
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
             );

@@ -23,10 +23,11 @@ export type TempOption = "Hot" | "Ice";
 export interface MenuItem {
   id: string;
   name: string;
-  price: number;
-  category: string; // カテゴリ名
+  price: number;       // temp なし商品の価格 / temp あり商品では未使用
+  category: string;
   soldOut: boolean;
-  allowedTemps?: TempOption[]; // 未設定 = カテゴリの hasTemp に従い両方対応
+  hotPrice?: number;   // Hot の価格（未設定 = Hot 非対応）
+  icePrice?: number;   // Ice の価格（未設定 = Ice 非対応）
 }
 
 // Firestore から読み込んだ生データ（型が不定なので一度受ける）
@@ -36,7 +37,8 @@ export interface RawMenuItem {
   price: string | number;
   category: string;
   soldOut?: boolean;
-  allowedTemps?: TempOption[];
+  hotPrice?: string | number;
+  icePrice?: string | number;
 }
 
 export interface CartItem {

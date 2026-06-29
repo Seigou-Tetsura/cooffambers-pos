@@ -1,6 +1,6 @@
 import { doc, runTransaction } from "firebase/firestore";
 import { db } from "./firebase";
-import { RawMenuItem, CatDef, DEFAULT_CATEGORIES, TempOption } from "./types";
+import { RawMenuItem, CatDef, DEFAULT_CATEGORIES } from "./types";
 
 // ==========================================
 // メニュー（menus/{営業日}）の安全な更新
@@ -10,7 +10,7 @@ import { RawMenuItem, CatDef, DEFAULT_CATEGORIES, TempOption } from "./types";
 export type MenuAction =
   | { type: "add"; item: RawMenuItem }
   | { type: "delete"; id: string }
-  | { type: "editItem"; id: string; name: string; price: number; allowedTemps?: TempOption[] }
+  | { type: "editItem"; id: string; name: string; price: number; hotPrice?: number; icePrice?: number }
   | { type: "moveItem"; id: string; dir: -1 | 1 }
   | { type: "toggleTicket"; value: boolean }
   | { type: "toggleAvgTime"; value: boolean }
@@ -55,7 +55,7 @@ export async function mutateMenu(date: string, action: MenuAction): Promise<void
       case "editItem":
         items = items.map((i) =>
           String(i.id) === action.id
-            ? { ...i, name: action.name, price: action.price, allowedTemps: action.allowedTemps }
+            ? { ...i, name: action.name, price: action.price, hotPrice: action.hotPrice, icePrice: action.icePrice }
             : i
         );
         break;
