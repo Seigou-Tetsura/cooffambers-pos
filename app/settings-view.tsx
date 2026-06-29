@@ -7,18 +7,13 @@ import { mutateMenu } from "../lib/menu";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
 
-// 日本語IME変換中にonChangeが発火するのを防ぐhook
+// 日本語IME対応: onChange + onCompositionEnd で確実に値を反映
 function useJapaneseInput(setValue: (v: string) => void) {
-  const composing = useRef(false);
+  const _ = useRef(null); // React hooks ルール維持用
+  void _;
   return {
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!composing.current) setValue(e.target.value);
-    },
-    onCompositionStart: () => { composing.current = true; },
-    onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => {
-      composing.current = false;
-      setValue(e.currentTarget.value);
-    },
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setValue(e.target.value),
+    onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => setValue(e.currentTarget.value),
   };
 }
 
