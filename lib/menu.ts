@@ -1,6 +1,13 @@
-import { doc, runTransaction } from "firebase/firestore";
+import { doc, runTransaction, deleteField } from "firebase/firestore";
 import { db } from "./firebase";
 import { RawMenuItem, CatDef, DEFAULT_CATEGORIES } from "./types";
+
+// undefinedフィールドをFirestoreのdeleteField()に変換（undefinedはFirestore非対応）
+function sanitizeItem(item: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(item).map(([k, v]) => [k, v === undefined ? deleteField() : v])
+  );
+}
 
 // ==========================================
 // メニュー（menus/{営業日}）の安全な更新
@@ -47,7 +54,7 @@ export async function mutateMenu(date: string, action: MenuAction): Promise<void
 
     switch (action.type) {
       case "add":
-        items = [...items, action.item];
+        items = [...items, sanitizeItem(action.item as unknown as Record<string, unknown>) as unknown as RawMenuItem];
         break;
       case "delete":
         items = items.filter((i) => String(i.id) !== action.id);
@@ -55,7 +62,7 @@ export async function mutateMenu(date: string, action: MenuAction): Promise<void
       case "editItem":
         items = items.map((i) =>
           String(i.id) === action.id
-            ? { ...i, name: action.name, price: action.price, hotPrice: action.hotPrice, icePrice: action.icePrice }
+            ? sanitizeItem({ ...i, name: action.name, price: action.price, hotPrice: action.hotPrice, icePrice: action.icePrice }) as unknown as RawMenuItem
             : i
         );
         break;
