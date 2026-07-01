@@ -240,10 +240,16 @@ export default function CashierView({
                 整理番号
                 <InfoTip text="自動で1ずつ増えていきます。手で書き換えることもでき、その場合は次の注文で「入力した番号 + 1」が表示されます。タブを切り替えても番号は保持されます。" align="left" />
               </label>
+              {/* 【変更点】整理番号の入力欄 */}
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="\d*"
                 value={ticketNumber}
-                onChange={(e) => setTicketNumber(e.target.value)}
+                onChange={(e) => {
+                  const onlyNumbers = e.target.value.replace(/\D/g, "");
+                  setTicketNumber(onlyNumbers);
+                }}
                 placeholder="1"
                 className="w-full px-3 py-2.5 text-2xl font-semibold tnum rounded-lg border border-stone-300 focus:outline-none focus:border-[#8a5a3b] focus:ring-2 focus:ring-[#8a5a3b]/15"
               />
@@ -306,10 +312,16 @@ export default function CashierView({
               </span>
               <div className="flex items-center bg-white border border-stone-300 rounded-lg overflow-hidden focus-within:border-[#8a5a3b] focus-within:ring-2 focus-within:ring-[#8a5a3b]/15">
                 <span className="pl-3 text-stone-400 font-mono">¥</span>
+                {/* 【変更点】お預り金の入力欄 */}
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d*"
                   value={cashReceived === null ? "" : cashReceived}
-                  onChange={(e) => setCashReceived(e.target.value === "" ? null : Number(e.target.value))}
+                  onChange={(e) => {
+                    const onlyNumbers = e.target.value.replace(/\D/g, "");
+                    setCashReceived(onlyNumbers === "" ? null : Number(onlyNumbers));
+                  }}
                   placeholder="0"
                   className="w-24 px-2 py-2 text-right font-mono font-semibold text-lg tnum focus:outline-none"
                 />
