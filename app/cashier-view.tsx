@@ -132,7 +132,8 @@ export default function CashierView({
 
     setIsSubmitting(true);
     try {
-      const shortOrderNumber = Date.now() % 10000;
+      // 営業日内の連番（既存注文の最大値 + 1）。時刻由来の擬似番号は衝突しうるため廃止
+      const shortOrderNumber = orders.reduce((max, o) => Math.max(max, o.orderNumber || 0), 0) + 1;
       const change = (cashReceived ?? 0) - totalAmount;
       await addDoc(collection(db, "orders"), {
         orderNumber: shortOrderNumber,
