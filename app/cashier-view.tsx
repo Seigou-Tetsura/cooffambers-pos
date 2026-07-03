@@ -76,6 +76,13 @@ export default function CashierView({
     );
   };
 
+  // 【追加】カートに入っている特定の商品の「個数」を取得するヘルパー関数
+  const getCartQuantity = (itemId: string, temp?: TempOption) => {
+    const cartItemId = `${itemId}-${temp ?? "none"}`;
+    const item = cart.find((i) => i.id === cartItemId);
+    return item ? item.quantity : 0;
+  };
+
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const changeAmount = cashReceived === null ? 0 : cashReceived - totalAmount;
@@ -114,7 +121,6 @@ export default function CashierView({
       });
       setCart([]);
       setCashReceived(null);
-      // 次の整理番号をサジェスト（入力値 + 1）
       if (useTicket) {
         setTicketNumber(String(parseToNumber(submittedTicket) + 1));
       }
@@ -137,7 +143,6 @@ export default function CashierView({
 
   return (
     <div className="space-y-4">
-      {/* 平均提供時間（設定でオンの時のみ） */}
       {showAvgTime && (
         <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] px-5 py-3 flex items-center justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1.5">
@@ -156,7 +161,6 @@ export default function CashierView({
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* 商品選択 */}
         <div className="lg:col-span-2 space-y-5">
           {categories.map((category) => {
             const itemsInCategory = menuItems.filter((item) => item.category === category.name);
@@ -171,12 +175,28 @@ export default function CashierView({
                     const hasIce = item.icePrice != null;
                     const hasTemp = hasHot || hasIce;
 
+                    // 【追加】この商品がカートにいくつ入っているかを計算
+                    const hotQty = hasHot ? getCartQuantity(item.id, "Hot") : 0;
+                    const iceQty = hasIce ? getCartQuantity(item.id, "Ice") : 0;
+                    const normalQty = !hasTemp ? getCartQuantity(item.id) : 0;
+                    const isSelectedAny = hotQty > 0 || iceQty > 0 || normalQty > 0;
+
                     if (hasTemp) {
-                      // HOT/ICEボタンを横並びで表示
                       return (
-                        <div key={item.id} className={`flex flex-col border rounded-lg overflow-hidden ${item.soldOut ? "border-stone-200" : "border-stone-200"}`}>
-                          <div className="px-4 pt-3 pb-1.5 flex justify-between items-center">
-                            <span className={`text-sm font-medium truncate ${item.soldOut ? "text-stone-400 line-through" : "text-stone-800"}`}>{item.name}</span>
+                        <div 
+                          key={item.id} 
+                          className={`flex flex-col border rounded-lg overflow-hidden transition-all duration-200 ${
+                            item.soldOut 
+                              ? "border-stone-200" 
+                              : isSelectedAny 
+                              ? "border-[#8a5a3b] shadow-[0_0_0_1px_rgba(138,90,59,0.4)] z-10" 
+                              : "border-stone-200"
+                          }`}
+                        >
+                          <div className={`px-4 pt-3 pb-1.5 flex justify-between items-center transition-colors ${isSelectedAny ? "bg-[#8a5a3b]/[0.03]" : "bg-transparent"}`}>
+                            <span className={`text-sm font-medium truncate transition-colors ${item.soldOut ? "text-stone-400 line-through" : isSelectedAny ? "text-[#8a5a3b]" : "text-stone-800"}`}>
+                              {item.name}
+                            </span>
                             {item.soldOut && <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold shrink-0">在庫なし</span>}
                           </div>
                           <div className="flex divide-x divide-stone-200 border-t border-stone-100">
@@ -184,9 +204,18 @@ export default function CashierView({
                               <button
                                 onClick={() => addToCart(item, "Hot")}
                                 disabled={item.soldOut}
-                                className="flex-1 flex items-center justify-between px-3 py-2.5 bg-white hover:bg-red-50/60 active:scale-[0.99] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                                className={`flex-1 flex items-center justify-between px-3 py-2.5 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  hotQty > 0 ? "bg-[#8a5a3b]/[0.08]" : "bg-white hover:bg-red-50/60 active:scale-[0.99]"
+                                }`}
                               >
-                                <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">HOT</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">HOT</span>
+                                  {hotQty > 0 && (
+                                    <span className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
+                                      {hotQty}
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-xs font-mono font-semibold text-stone-500 tnum">¥{item.hotPrice!.toLocaleString()}</span>
                               </button>
                             )}
@@ -194,9 +223,18 @@ export default function CashierView({
                               <button
                                 onClick={() => addToCart(item, "Ice")}
                                 disabled={item.soldOut}
-                                className="flex-1 flex items-center justify-between px-3 py-2.5 bg-white hover:bg-blue-50/60 active:scale-[0.99] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                                className={`flex-1 flex items-center justify-between px-3 py-2.5 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  iceQty > 0 ? "bg-[#8a5a3b]/[0.08]" : "bg-white hover:bg-blue-50/60 active:scale-[0.99]"
+                                }`}
                               >
-                                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">ICE</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">ICE</span>
+                                  {iceQty > 0 && (
+                                    <span className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
+                                      {iceQty}
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-xs font-mono font-semibold text-stone-500 tnum">¥{item.icePrice!.toLocaleString()}</span>
                               </button>
                             )}
@@ -211,13 +249,24 @@ export default function CashierView({
                         key={item.id}
                         onClick={() => addToCart(item)}
                         disabled={item.soldOut}
-                        className={`flex justify-between items-center px-4 py-3.5 border rounded-lg text-left transition-all ${
+                        className={`relative flex justify-between items-center px-4 py-3.5 border rounded-lg text-left transition-all duration-200 ${
                           item.soldOut
                             ? "bg-stone-50 border-stone-200 cursor-not-allowed"
-                            : "bg-white border-stone-200 hover:border-[#8a5a3b]/50 hover:bg-[#8a5a3b]/[0.03] active:scale-[0.99]"
+                            : normalQty > 0
+                            ? "bg-[#8a5a3b]/[0.04] border-[#8a5a3b] shadow-[0_0_0_1px_rgba(138,90,59,0.4)] z-10"
+                            : "bg-white border-stone-200 hover:border-[#8a5a3b]/50 hover:bg-[#8a5a3b]/[0.02] active:scale-[0.99]"
                         }`}
                       >
-                        <span className={`text-sm font-medium truncate ${item.soldOut ? "text-stone-400 line-through" : "text-stone-800"}`}>{item.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-medium truncate transition-colors ${item.soldOut ? "text-stone-400 line-through" : normalQty > 0 ? "text-[#8a5a3b]" : "text-stone-800"}`}>
+                            {item.name}
+                          </span>
+                          {normalQty > 0 && (
+                            <span className="bg-[#8a5a3b] text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-full shadow-sm animate-in zoom-in duration-200">
+                              {normalQty}
+                            </span>
+                          )}
+                        </div>
                         {item.soldOut ? (
                           <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold shrink-0">在庫なし</span>
                         ) : (
@@ -232,7 +281,6 @@ export default function CashierView({
           })}
         </div>
 
-        {/* 会計パネル */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] h-fit sticky top-28 p-5 flex flex-col gap-5">
           {useTicket && (
             <div>
@@ -240,7 +288,6 @@ export default function CashierView({
                 整理番号
                 <InfoTip text="自動で1ずつ増えていきます。手で書き換えることもでき、その場合は次の注文で「入力した番号 + 1」が表示されます。タブを切り替えても番号は保持されます。" align="left" />
               </label>
-              {/* 【変更点】整理番号の入力欄 */}
               <input
                 type="text"
                 inputMode="numeric"
@@ -251,7 +298,7 @@ export default function CashierView({
                   setTicketNumber(onlyNumbers);
                 }}
                 placeholder="1"
-                className="w-full px-3 py-2.5 text-2xl font-semibold tnum rounded-lg border border-stone-300 focus:outline-none focus:border-[#8a5a3b] focus:ring-2 focus:ring-[#8a5a3b]/15"
+                className="w-full px-3 py-2.5 text-2xl font-semibold tnum rounded-lg border border-stone-300 focus:outline-none focus:border-[#8a5a3b] focus:ring-2 focus:ring-[#8a5a3b]/15 transition-shadow"
               />
             </div>
           )}
@@ -289,9 +336,9 @@ export default function CashierView({
                       <div className="text-xs text-stone-400 font-mono tnum mt-0.5">¥{item.price.toLocaleString()}</div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-md border border-stone-200 text-stone-500 font-medium hover:bg-stone-50">−</button>
+                      <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-md border border-stone-200 text-stone-500 font-medium hover:bg-stone-50 transition-colors">−</button>
                       <span className="font-mono w-6 text-center text-sm font-semibold text-stone-800 tnum">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-md border border-stone-200 text-stone-500 font-medium hover:bg-stone-50">+</button>
+                      <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-md border border-stone-200 text-stone-500 font-medium hover:bg-stone-50 transition-colors">+</button>
                     </div>
                   </div>
                 ))}
@@ -302,7 +349,7 @@ export default function CashierView({
           <div className="border-t border-stone-200 pt-4 space-y-3">
             <div className="flex justify-between items-baseline">
               <span className="text-sm text-stone-500">合計{totalCount > 0 && <span className="text-xs text-stone-400 ml-1">（{totalCount}点）</span>}</span>
-              <span className="text-2xl font-semibold tnum text-stone-900">¥{totalAmount.toLocaleString()}</span>
+              <span className="text-2xl font-semibold tnum text-stone-900 transition-all">¥{totalAmount.toLocaleString()}</span>
             </div>
 
             <div className="flex justify-between items-center gap-2">
@@ -310,9 +357,8 @@ export default function CashierView({
                 お預かり
                 <InfoTip text="お客様から受け取った金額です。下のボタンで素早く入力でき、お釣りが自動計算されます。お会計金額以上を入力すると送信できます。" align="left" />
               </span>
-              <div className="flex items-center bg-white border border-stone-300 rounded-lg overflow-hidden focus-within:border-[#8a5a3b] focus-within:ring-2 focus-within:ring-[#8a5a3b]/15">
+              <div className="flex items-center bg-white border border-stone-300 rounded-lg overflow-hidden focus-within:border-[#8a5a3b] focus-within:ring-2 focus-within:ring-[#8a5a3b]/15 transition-shadow">
                 <span className="pl-3 text-stone-400 font-mono">¥</span>
-                {/* 【変更点】お預り金の入力欄 */}
                 <input
                   type="text"
                   inputMode="numeric"
@@ -332,7 +378,7 @@ export default function CashierView({
               <button
                 onClick={() => setCashReceived(totalAmount)}
                 disabled={totalAmount === 0}
-                className="flex-1 px-2 py-1.5 text-xs font-semibold text-[#8a5a3b] bg-[#8a5a3b]/[0.08] border border-[#8a5a3b]/20 rounded-md hover:bg-[#8a5a3b]/[0.14] disabled:opacity-40"
+                className="flex-1 px-2 py-1.5 text-xs font-semibold text-[#8a5a3b] bg-[#8a5a3b]/[0.08] border border-[#8a5a3b]/20 rounded-md hover:bg-[#8a5a3b]/[0.14] disabled:opacity-40 transition-colors"
               >
                 ぴったり
               </button>
@@ -340,7 +386,7 @@ export default function CashierView({
                 <button
                   key={amt}
                   onClick={() => setCashReceived((prev) => (prev ?? 0) + amt)}
-                  className="flex-1 px-2 py-1.5 text-xs font-semibold text-stone-600 bg-white border border-stone-300 rounded-md hover:bg-stone-50 font-mono tnum whitespace-nowrap"
+                  className="flex-1 px-2 py-1.5 text-xs font-semibold text-stone-600 bg-white border border-stone-300 rounded-md hover:bg-stone-50 font-mono tnum whitespace-nowrap transition-colors"
                 >
                   +{amt.toLocaleString()}
                 </button>
@@ -352,7 +398,7 @@ export default function CashierView({
                 お釣り
                 <InfoTip text="「お預かり − 合計」を自動計算します。足りない時は赤字で表示され、送信できません。" align="left" />
               </span>
-              <span className={`text-xl font-semibold font-mono tnum ${isShortOfCash ? "text-red-500" : "text-stone-900"}`}>
+              <span className={`text-xl font-semibold font-mono tnum transition-colors ${isShortOfCash ? "text-red-500" : "text-stone-900"}`}>
                 ¥{cashReceived === null ? "0" : changeAmount.toLocaleString()}
               </span>
             </div>
@@ -361,7 +407,7 @@ export default function CashierView({
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0 || isSubmitting || (useTicket && !ticketNumber.trim()) || cashReceived === null || isShortOfCash}
-            className="w-full py-3.5 bg-stone-900 hover:bg-stone-800 text-white font-medium tracking-wide rounded-lg transition-colors active:scale-[0.99] disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
+            className="w-full py-3.5 bg-stone-900 hover:bg-stone-800 text-white font-medium tracking-wide rounded-lg transition-all active:scale-[0.99] disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "送信中…" : cashReceived === null ? "お預かりを入力してください" : isShortOfCash ? "金額が不足しています" : "注文を送信する"}
           </button>
