@@ -140,6 +140,20 @@ export default function CashierView({
 
   return (
     <div className="space-y-4">
+      {/* 毎回確実にアニメーションさせるための専用CSSスタイル */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes badge-pop {
+            0% { transform: scale(0.8); }
+            40% { transform: scale(1.35); }
+            100% { transform: scale(1); }
+          }
+          .animate-pop {
+            animation: badge-pop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+          }
+        `
+      }} />
+
       {showAvgTime && (
         <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] px-5 py-3 flex items-center justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1.5">
@@ -207,8 +221,7 @@ export default function CashierView({
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">HOT</span>
                                   {hotQty > 0 && (
-                                    // 【変更点】key={hotQty} を追加して毎回アニメーションを再発火
-                                    <span key={hotQty} className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
+                                    <span key={hotQty} className="animate-pop bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full">
                                       {hotQty}
                                     </span>
                                   )}
@@ -227,8 +240,7 @@ export default function CashierView({
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">ICE</span>
                                   {iceQty > 0 && (
-                                    // 【変更点】key={iceQty} を追加
-                                    <span key={iceQty} className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
+                                    <span key={iceQty} className="animate-pop bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full">
                                       {iceQty}
                                     </span>
                                   )}
@@ -260,8 +272,7 @@ export default function CashierView({
                             {item.name}
                           </span>
                           {normalQty > 0 && (
-                            // 【変更点】key={normalQty} を追加
-                            <span key={normalQty} className="bg-[#8a5a3b] text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-full shadow-sm animate-in zoom-in duration-200">
+                            <span key={normalQty} className="animate-pop bg-[#8a5a3b] text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-full shadow-sm">
                               {normalQty}
                             </span>
                           )}
