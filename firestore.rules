@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// Firestore セキュリティルール（Firebase コンソール → Firestore Database → ルール に貼り付ける）
+//
+// 適用手順（この順番で。逆にするとアプリが一時的に動かなくなる）:
+//   1. Firebase コンソール → Authentication → Sign-in method → 「匿名」を有効化
+//   2. 匿名認証対応版のアプリをデプロイ（lib/firebase.ts の ensureSignedIn 導入済みのコード）
+//   3. このルールをコンソールに貼り付けて公開
+//
+// これで「アプリを開いた人（匿名サインイン済み）」だけが読み書きでき、
+// URL と projectId を知っているだけの第三者は REST API 等から読み書きできなくなる。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

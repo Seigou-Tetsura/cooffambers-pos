@@ -8,6 +8,7 @@ import { CartItem, MenuItem, Order, CatDef, TempOption } from "../lib/types";
 import { parseToNumber, computeCompletion, formatElapsed } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
+import { NumPad } from "../lib/numpad";
 
 // ==========================================
 // レジ入力（CashierView）
@@ -36,6 +37,8 @@ export default function CashierView({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cashReceived, setCashReceived] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // iPad で OS キーボードを開かせないための画面内テンキー。どの欄に対して開いているか
+  const [numpadTarget, setNumpadTarget] = useState<"ticket" | "cash" | null>(null);
   const { showError, showToast } = useToast();
 
   const RECENT_WINDOW_MS = 30 * 60 * 1000;
@@ -105,7 +108,8 @@ export default function CashierView({
 
     setIsSubmitting(true);
     try {
-      const shortOrderNumber = Date.now() % 10000;
+      // 営業日内の連番（既存注文の最大値 + 1）。時刻由来の擬似番号は衝突しうるため廃止
+      const shortOrderNumber = orders.reduce((max, o) => Math.max(max, o.orderNumber || 0), 0) + 1;
       const change = (cashReceived ?? 0) - totalAmount;
       await addDoc(collection(db, "orders"), {
         orderNumber: shortOrderNumber,
@@ -298,17 +302,16 @@ export default function CashierView({
                 整理番号
                 <InfoTip text="自動で1ずつ増えていきます。手で書き換えることもでき、その場合は次の注文で「入力した番号 + 1」が表示されます。タブを切り替えても番号は保持されます。" align="left" />
               </label>
+              {/* readOnly + 画面内テンキー: iPad で OS のフルキーボードを開かせない */}
               <input
                 type="text"
-                inputMode="numeric"
-                pattern="\d*"
+                readOnly
                 value={ticketNumber}
-                onChange={(e) => {
-                  const onlyNumbers = e.target.value.replace(/\D/g, "");
-                  setTicketNumber(onlyNumbers);
-                }}
+                onClick={() => setNumpadTarget("ticket")}
                 placeholder="1"
-                className="w-full px-3 py-2.5 text-2xl font-semibold tnum rounded-lg border border-stone-300 focus:outline-none focus:border-[#8a5a3b] focus:ring-2 focus:ring-[#8a5a3b]/15 transition-shadow"
+                className={`w-full px-3 py-2.5 text-2xl font-semibold tnum rounded-lg border cursor-pointer transition-shadow ${
+                  numpadTarget === "ticket" ? "border-[#8a5a3b] ring-2 ring-[#8a5a3b]/15" : "border-stone-300"
+                }`}
               />
             </div>
           )}
@@ -367,19 +370,20 @@ export default function CashierView({
                 お預かり
                 <InfoTip text="お客様から受け取った金額です。下のボタンで素早く入力でき、お釣りが自動計算されます。お会計金額以上を入力すると送信できます。" align="left" />
               </span>
-              <div className="flex items-center bg-white border border-stone-300 rounded-lg overflow-hidden focus-within:border-[#8a5a3b] focus-within:ring-2 focus-within:ring-[#8a5a3b]/15 transition-shadow">
+              <div
+                className={`flex items-center bg-white border rounded-lg overflow-hidden transition-shadow ${
+                  numpadTarget === "cash" ? "border-[#8a5a3b] ring-2 ring-[#8a5a3b]/15" : "border-stone-300"
+                }`}
+              >
                 <span className="pl-3 text-stone-400 font-mono">¥</span>
+                {/* readOnly + 画面内テンキー: iPad で OS のフルキーボードを開かせない */}
                 <input
                   type="text"
-                  inputMode="numeric"
-                  pattern="\d*"
-                  value={cashReceived === null ? "" : cashReceived}
-                  onChange={(e) => {
-                    const onlyNumbers = e.target.value.replace(/\D/g, "");
-                    setCashReceived(onlyNumbers === "" ? null : Number(onlyNumbers));
-                  }}
+                  readOnly
+                  value={cashReceived === null ? "" : cashReceived.toLocaleString()}
+                  onClick={() => setNumpadTarget("cash")}
                   placeholder="0"
-                  className="w-24 px-2 py-2 text-right font-mono font-semibold text-lg tnum focus:outline-none"
+                  className="w-24 px-2 py-2 text-right font-mono font-semibold text-lg tnum cursor-pointer focus:outline-none"
                 />
               </div>
             </div>
@@ -423,6 +427,24 @@ export default function CashierView({
           </button>
         </div>
       </div>
+
+      {numpadTarget === "ticket" && (
+        <NumPad
+          title="整理番号"
+          value={ticketNumber}
+          onChange={setTicketNumber}
+          onClose={() => setNumpadTarget(null)}
+        />
+      )}
+      {numpadTarget === "cash" && (
+        <NumPad
+          title="お預かり金額"
+          prefix="¥"
+          value={cashReceived === null ? "" : String(cashReceived)}
+          onChange={(v) => setCashReceived(v === "" ? null : Number(v))}
+          onClose={() => setNumpadTarget(null)}
+        />
+      )}
     </div>
   );
 }

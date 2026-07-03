@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { collection, query, where, orderBy, onSnapshot, doc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, ensureSignedIn } from "../lib/firebase";
 import { Mode, MenuItem, RawMenuItem, Order, CatDef, DEFAULT_CATEGORIES } from "../lib/types";
 import { parseToNumber } from "../lib/utils";
 import { ToastProvider } from "../lib/toast";
@@ -42,7 +42,13 @@ export default function App() {
   const [ticketNumber, setTicketNumber] = useState("");
   const ticketInitialized = useRef(false);
 
+  // 認証（匿名サインイン）が済んでから Firestore を購読する。
+  // ルールが request.auth != null の場合、サインイン前の購読は権限エラーになるため
+  const [authReady, setAuthReady] = useState(false);
+  useEffect(() => ensureSignedIn(() => setAuthReady(true)), []);
+
   useEffect(() => {
+    if (!authReady) return;
     setIsOrdersLoading(true);
     const q = query(collection(db, "orders"), where("date", "==", selectedDate), orderBy("createdAt", "asc"));
     const unsubscribe = onSnapshot(
@@ -59,9 +65,10 @@ export default function App() {
       }
     );
     return () => unsubscribe();
-  }, [selectedDate]);
+  }, [selectedDate, authReady]);
 
   useEffect(() => {
+    if (!authReady) return;
     setIsMenuLoading(true);
     const menuRef = doc(db, "menus", selectedDate);
     const unsubscribe = onSnapshot(menuRef, (docSnap) => {
@@ -94,7 +101,7 @@ export default function App() {
       setIsMenuLoading(false);
     });
     return () => unsubscribe();
-  }, [selectedDate]);
+  }, [selectedDate, authReady]);
 
   // 整理番号の自動採番: 既存注文の最大番号 + 1（無ければ 1）
   const suggestedTicket = useMemo(() => {
@@ -190,7 +197,8 @@ export default function App() {
         </div>
 
         <main className="max-w-6xl mx-auto px-4 sm:px-5 py-6 sm:py-8">
-          {mode === "cashier" && (
+          {!authReady && <Loading />}
+          {authReady && mode === "cashier" && (
             <CashierView
               selectedDate={selectedDate}
               menuItems={menuItems}
@@ -203,10 +211,10 @@ export default function App() {
               setTicketNumber={setTicketNumber}
             />
           )}
-          {mode === "barista" && <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} selectedDate={selectedDate} />}
-          {mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} menuItems={menuItems} categories={categories} />}
-          {mode === "period" && <PeriodView />}
-          {mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} categories={categories} useTicket={useTicket} showAvgTime={showAvgTime} />}
+          {authReady && mode === "barista" && <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} selectedDate={selectedDate} />}
+          {authReady && mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} menuItems={menuItems} categories={categories} />}
+          {authReady && mode === "period" && <PeriodView />}
+          {authReady && mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} categories={categories} useTicket={useTicket} showAvgTime={showAvgTime} />}
         </main>
       </div>
     </ToastProvider>
