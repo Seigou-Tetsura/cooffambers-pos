@@ -11,7 +11,6 @@ import { InfoTip } from "../lib/info";
 
 // ==========================================
 // レジ入力（CashierView）
-// 整理番号は App 側で保持し、props で受け取る（タブ切替でリセットされない）
 // ==========================================
 export default function CashierView({
   selectedDate,
@@ -39,7 +38,6 @@ export default function CashierView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { showError, showToast } = useToast();
 
-  // 直近30分の平均提供時間を出すため、現在時刻を定期更新（30秒ごと）
   const RECENT_WINDOW_MS = 30 * 60 * 1000;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -47,8 +45,8 @@ export default function CashierView({
     return () => clearInterval(t);
   }, []);
 
-  // 直近30分以内に提供完了した注文の平均（受注→提供）
   const completion = useMemo(() => computeCompletion(orders, { sinceMs: now - RECENT_WINDOW_MS }), [orders, now, RECENT_WINDOW_MS]);
+  
   const addToCart = (item: MenuItem, temp?: TempOption) => {
     if (item.soldOut) return;
     const price = temp === "Hot" ? (item.hotPrice ?? item.price) : temp === "Ice" ? (item.icePrice ?? item.price) : item.price;
@@ -76,7 +74,6 @@ export default function CashierView({
     );
   };
 
-  // 【追加】カートに入っている特定の商品の「個数」を取得するヘルパー関数
   const getCartQuantity = (itemId: string, temp?: TempOption) => {
     const cartItemId = `${itemId}-${temp ?? "none"}`;
     const item = cart.find((i) => i.id === cartItemId);
@@ -175,7 +172,6 @@ export default function CashierView({
                     const hasIce = item.icePrice != null;
                     const hasTemp = hasHot || hasIce;
 
-                    // 【追加】この商品がカートにいくつ入っているかを計算
                     const hotQty = hasHot ? getCartQuantity(item.id, "Hot") : 0;
                     const iceQty = hasIce ? getCartQuantity(item.id, "Ice") : 0;
                     const normalQty = !hasTemp ? getCartQuantity(item.id) : 0;
@@ -211,7 +207,8 @@ export default function CashierView({
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">HOT</span>
                                   {hotQty > 0 && (
-                                    <span className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
+                                    // 【変更点】key={hotQty} を追加して毎回アニメーションを再発火
+                                    <span key={hotQty} className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
                                       {hotQty}
                                     </span>
                                   )}
@@ -230,7 +227,8 @@ export default function CashierView({
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">ICE</span>
                                   {iceQty > 0 && (
-                                    <span className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
+                                    // 【変更点】key={iceQty} を追加
+                                    <span key={iceQty} className="bg-[#8a5a3b] text-white text-[10px] font-bold h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full animate-in zoom-in duration-200">
                                       {iceQty}
                                     </span>
                                   )}
@@ -262,7 +260,8 @@ export default function CashierView({
                             {item.name}
                           </span>
                           {normalQty > 0 && (
-                            <span className="bg-[#8a5a3b] text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-full shadow-sm animate-in zoom-in duration-200">
+                            // 【変更点】key={normalQty} を追加
+                            <span key={normalQty} className="bg-[#8a5a3b] text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 flex items-center justify-center rounded-full shadow-sm animate-in zoom-in duration-200">
                               {normalQty}
                             </span>
                           )}
