@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Order, CartItem, MenuItem } from "../lib/types";
+import { Order, CartItem, MenuItem, CatDef } from "../lib/types";
 import { groupOrderItems, formatElapsed, elapsedUrgency } from "../lib/utils";
 import { mutateMenu } from "../lib/menu";
 import { useToast } from "../lib/toast";
@@ -23,12 +23,18 @@ export default function BaristaView({
   orders,
   isOrdersLoading,
   menuItems,
+  categories,
   selectedDate,
+  soundOn,
+  onToggleSound,
 }: {
   orders: Order[];
   isOrdersLoading: boolean;
   menuItems: MenuItem[];
+  categories: CatDef[];
   selectedDate: string;
+  soundOn: boolean;
+  onToggleSound: () => void;
 }) {
   const { showError, showUndo } = useToast();
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -113,12 +119,28 @@ export default function BaristaView({
     }
   };
 
-  // 製造タスク集計（まだ提供していない商品だけを集計）
-  const overallSummary = useMemo(() => {
-    const summary: Record<string, { total: number; details: Record<string, number> }> = {};
+  // 在庫数のその場調整（差し入れ補充・数え直し用）
+  const handleSetStock = async (id: string, value: number) => {
+    if (togglingId) return;
+    setTogglingId(id);
+    try {
+      await mutateMenu(selectedDate, { type: "setStock", id, value: Math.max(0, value) });
+    } catch (e) {
+      console.error(e);
+      showError("在庫数の更新に失敗しました。");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  // 製造タスク集計（まだ提供していない商品だけを、カテゴリごとに分けて集計）
+  const categorySummary = useMemo(() => {
+    const byCat: Record<string, Record<string, { total: number; details: Record<string, number> }>> = {};
     pendingOrders.forEach((order) => {
       order.items?.forEach((item) => {
         if (item.served) return;
+        const cat = item.category || "その他";
+        const summary = (byCat[cat] ??= {});
         if (!summary[item.name]) summary[item.name] = { total: 0, details: {} };
         summary[item.name].total += item.quantity;
         if (item.temperature) {
@@ -126,8 +148,15 @@ export default function BaristaView({
         }
       });
     });
-    return summary;
+    return byCat;
   }, [pendingOrders]);
+
+  // カテゴリの表示順は設定画面の並び順に従う。設定に無いカテゴリ名（改名前の注文など）は末尾に回す
+  const orderedCategoryNames = useMemo(() => {
+    const known = categories.map((c) => c.name).filter((name) => categorySummary[name]);
+    const unknown = Object.keys(categorySummary).filter((name) => !categories.some((c) => c.name === name));
+    return [...known, ...unknown];
+  }, [categories, categorySummary]);
 
   const totalPendingItems = useMemo(
     () => pendingOrders.reduce((sum, order) => sum + (order.items?.reduce((s, item) => s + (item.served ? 0 : item.quantity), 0) || 0), 0),
@@ -153,42 +182,76 @@ export default function BaristaView({
           <span className="normal-case tracking-normal text-stone-400 font-normal">件</span>
           <InfoTip text="まだ提供していない注文の一覧です。古い注文ほど上に並びます。各注文の「提供完了」を押すと下の完了一覧に移動します。" align="left" />
         </h2>
-        <button
-          onClick={() => setShowSoldOutPanel((v) => !v)}
-          className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${
-            showSoldOutPanel ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
-          }`}
-        >
-          品切れ設定{soldOutCount > 0 && <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold tnum">{soldOutCount}</span>}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleSound}
+            title={soundOn ? "新着オーダーの通知音をオフにする" : "新着オーダーの通知音をオンにする"}
+            className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${
+              soundOn ? "bg-[#0891b2]/[0.08] text-[#0891b2] border-[#0891b2]/30" : "bg-white text-stone-400 border-stone-300 hover:bg-stone-50"
+            }`}
+          >
+            {soundOn ? "🔔 通知音 ON" : "🔕 通知音 OFF"}
+          </button>
+          <button
+            onClick={() => setShowSoldOutPanel((v) => !v)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${
+              showSoldOutPanel ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+            }`}
+          >
+            在庫・品切れ{soldOutCount > 0 && <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold tnum">{soldOutCount}</span>}
+          </button>
+        </div>
       </div>
 
-      {/* 品切れ設定パネル（レジへリアルタイム反映） */}
+      {/* 在庫・品切れパネル（レジへリアルタイム反映） */}
       {showSoldOutPanel && (
         <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-5">
           <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-400 mb-1 flex items-center gap-1.5">
-            品切れ設定
-            <InfoTip text="「在庫なし」にするとレジ画面でその商品を注文できなくなります。現場の在庫状況をレジへ即反映できます。" align="left" />
+            在庫・品切れ
+            <InfoTip text="「在庫なし」にするとレジ画面でその商品を注文できなくなります。在庫数を管理している商品は −/＋ でその場で数を直せます（補充・数え直し用）。在庫が0の商品もレジで注文できなくなります。" align="left" />
           </h3>
-          <p className="text-xs text-stone-400 mb-4">在庫なしにすると、レジ画面から即座に注文できなくなります。</p>
+          <p className="text-xs text-stone-400 mb-4">在庫なし・在庫0の商品は、レジ画面から即座に注文できなくなります。</p>
           {menuItems.length === 0 ? (
             <p className="text-sm text-stone-400 text-center py-4">メニューがありません。</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {menuItems.map((item) => (
-                <button
+                <div
                   key={item.id}
-                  onClick={() => handleToggleSoldOut(item.id, !item.soldOut)}
-                  disabled={togglingId === item.id}
-                  className={`flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-left transition-all active:scale-[0.99] disabled:opacity-50 ${
-                    item.soldOut ? "bg-red-50/60 border-red-200" : "bg-white border-stone-200 hover:border-stone-300"
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg border transition-all ${
+                    item.soldOut ? "bg-red-50/60 border-red-200" : "bg-white border-stone-200"
                   }`}
                 >
-                  <span className={`text-sm font-medium ${item.soldOut ? "text-red-500 line-through" : "text-stone-800"}`}>{item.name}</span>
-                  <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${item.soldOut ? "bg-red-500 text-white" : "bg-emerald-50 text-emerald-600"}`}>
-                    {item.soldOut ? "在庫なし" : "販売中"}
-                  </span>
-                </button>
+                  <button
+                    onClick={() => handleToggleSoldOut(item.id, !item.soldOut)}
+                    disabled={togglingId === item.id}
+                    className="flex-1 flex justify-between items-center gap-2 text-left min-w-0 py-0.5 transition-all active:scale-[0.99] disabled:opacity-50"
+                  >
+                    <span className={`text-sm font-medium truncate ${item.soldOut ? "text-red-500 line-through" : "text-stone-800"}`}>{item.name}</span>
+                    <span className={`shrink-0 text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${item.soldOut ? "bg-red-500 text-white" : "bg-emerald-50 text-emerald-600"}`}>
+                      {item.soldOut ? "在庫なし" : "販売中"}
+                    </span>
+                  </button>
+                  {item.stock != null && (
+                    <div className="flex items-center gap-1 shrink-0 pl-2 border-l border-stone-200">
+                      <button
+                        onClick={() => handleSetStock(item.id, item.stock! - 1)}
+                        disabled={togglingId === item.id || item.stock === 0}
+                        className="w-7 h-7 rounded-md border border-stone-200 text-stone-500 font-medium hover:bg-stone-50 disabled:opacity-30 transition-colors"
+                      >
+                        −
+                      </button>
+                      <span className={`font-mono w-8 text-center text-sm font-semibold tnum ${item.stock === 0 ? "text-red-600" : "text-stone-800"}`}>{item.stock}</span>
+                      <button
+                        onClick={() => handleSetStock(item.id, item.stock! + 1)}
+                        disabled={togglingId === item.id}
+                        className="w-7 h-7 rounded-md border border-stone-200 text-stone-500 font-medium hover:bg-stone-50 disabled:opacity-30 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -209,24 +272,38 @@ export default function BaristaView({
             {totalPendingItems === 0 ? (
               <p className="text-sm text-emerald-600 font-medium py-1">すべて提供チェック済みです</p>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                {Object.entries(overallSummary).map(([name, data], i) => (
-                  <div key={i} className="bg-stone-50 px-3 py-2.5 rounded-lg border border-stone-200">
-                    <div className="text-sm font-medium text-stone-800 mb-1 flex items-baseline justify-between gap-1">
-                      <span className="truncate">{name}</span>
-                      <span className="text-[#688a74] font-semibold tnum shrink-0">{data.total}</span>
-                    </div>
-                    {Object.keys(data.details).length > 0 && (
-                      <div className="flex gap-1.5">
-                        {Object.entries(data.details).map(([temp, qty], j) => (
-                          <span key={j} className={`text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded ${temp === "Hot" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
-                            {temp === "Hot" ? "HOT" : "ICE"} {qty}
-                          </span>
+              <div className="space-y-4">
+                {orderedCategoryNames.map((catName) => {
+                  const summary = categorySummary[catName];
+                  const catTotal = Object.values(summary).reduce((sum, d) => sum + d.total, 0);
+                  return (
+                    <div key={catName}>
+                      <div className="flex items-baseline gap-1.5 mb-2">
+                        <span className="text-xs font-semibold text-stone-500">{catName}</span>
+                        <span className="text-[10px] text-stone-400 tnum">{catTotal}品</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                        {Object.entries(summary).map(([name, data], i) => (
+                          <div key={i} className="bg-stone-50 px-3 py-2.5 rounded-lg border border-stone-200">
+                            <div className="text-sm font-medium text-stone-800 mb-1 flex items-baseline justify-between gap-1">
+                              <span className="truncate">{name}</span>
+                              <span className="text-[#688a74] font-semibold tnum shrink-0">{data.total}</span>
+                            </div>
+                            {Object.keys(data.details).length > 0 && (
+                              <div className="flex gap-1.5">
+                                {Object.entries(data.details).map(([temp, qty], j) => (
+                                  <span key={j} className={`text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded ${temp === "Hot" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
+                                    {temp === "Hot" ? "HOT" : "ICE"} {qty}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

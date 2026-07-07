@@ -13,6 +13,9 @@ export const parseToNumber = (val: string | number | null | undefined): number =
   return isNaN(num) ? 0 : num;
 };
 
+// カートアイテムID（`${商品id}-${温度}`）から元の商品IDを取り出す（在庫の照合用）
+export const baseItemId = (cartItemId: string): string => cartItemId.replace(/-(Hot|Ice|none)$/, "");
+
 export interface GroupedItem {
   total: number;
   subItems: CartItem[];
@@ -68,6 +71,8 @@ export function computeCompletion(orders: Order[], opts?: { sinceMs?: number }):
 
   for (const o of orders) {
     if (o.status !== "completed" || !o.createdAt || !o.completedAt) continue;
+    // レジで全品受け渡した注文は製造していない（≒0秒）ので、平均提供時間を歪めないよう除外
+    if (o.handedAtRegister) continue;
     // 直近◯分など、完了時刻で期間を絞り込む（opts.sinceMs 以降のみ集計）
     if (opts?.sinceMs !== undefined && o.completedAt.seconds * 1000 < opts.sinceMs) continue;
     const dur = o.completedAt.seconds - o.createdAt.seconds;

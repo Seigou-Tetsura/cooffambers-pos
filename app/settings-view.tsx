@@ -39,6 +39,21 @@ const PriceInput = ({ label, placeholder, value, onChange, color }: {
   </div>
 );
 
+// 在庫数の入力（空欄 = 在庫管理しない）。PriceInput と違い ¥ プレフィックスなし
+const StockInput = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+  <div className="flex items-center gap-1">
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 bg-amber-100 text-amber-700">在庫</span>
+    <input
+      type="number"
+      min={0}
+      placeholder="空欄=管理しない"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-28 px-2 py-1.5 bg-white border border-stone-300 rounded-md focus:border-[#a8823f] focus:outline-none text-sm font-mono tnum"
+    />
+  </div>
+);
+
 const Chevron = ({ up = false }: { up?: boolean }) => (
   <svg viewBox="0 0 12 12" className={`w-3 h-3 ${up ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2.5 4.5L6 8l3.5-3.5" />
@@ -71,6 +86,7 @@ export default function SettingsView({
   const [newItemCategory, setNewItemCategory] = useState("");
   const [newItemHotPrice, setNewItemHotPrice] = useState("");
   const [newItemIcePrice, setNewItemIcePrice] = useState("");
+  const [newItemStock, setNewItemStock] = useState("");
 
   // メニュー行のインライン編集
   const [editId, setEditId] = useState<string | null>(null);
@@ -78,6 +94,7 @@ export default function SettingsView({
   const [editPrice, setEditPrice] = useState("");
   const [editHotPrice, setEditHotPrice] = useState("");
   const [editIcePrice, setEditIcePrice] = useState("");
+  const [editStock, setEditStock] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // カテゴリ
@@ -117,16 +134,18 @@ export default function SettingsView({
       showError("通常価格、またはHOT/ICEいずれかの価格を入力してください。");
       return;
     }
+    const stock = newItemStock.trim() ? parseToNumber(newItemStock) : undefined;
     run(() =>
       mutateMenu(selectedDate, {
         type: "add",
-        item: { id: Date.now().toString(), name: newItemName.trim(), price, category: itemCat, soldOut: false, hotPrice, icePrice },
+        item: { id: Date.now().toString(), name: newItemName.trim(), price, category: itemCat, soldOut: false, hotPrice, icePrice, stock },
       })
     );
     setNewItemName("");
     setNewItemPrice("");
     setNewItemHotPrice("");
     setNewItemIcePrice("");
+    setNewItemStock("");
   };
 
   const startEdit = (item: MenuItem) => {
@@ -135,12 +154,14 @@ export default function SettingsView({
     setEditPrice(String(item.price));
     setEditHotPrice(item.hotPrice != null ? String(item.hotPrice) : "");
     setEditIcePrice(item.icePrice != null ? String(item.icePrice) : "");
+    setEditStock(item.stock != null ? String(item.stock) : "");
     setConfirmDeleteId(null);
   };
   const saveEdit = (id: string) => {
     const price = parseToNumber(editPrice);
     const hotPrice = editHotPrice ? parseToNumber(editHotPrice) : undefined;
     const icePrice = editIcePrice ? parseToNumber(editIcePrice) : undefined;
+    const stock = editStock.trim() ? parseToNumber(editStock) : undefined;
     if (!editName.trim()) {
       showError("商品名を入力してください。");
       return;
@@ -149,7 +170,7 @@ export default function SettingsView({
       showError("通常価格、またはHOT/ICEいずれかの価格を入力してください。");
       return;
     }
-    run(() => mutateMenu(selectedDate, { type: "editItem", id, name: editName.trim(), price, hotPrice, icePrice }));
+    run(() => mutateMenu(selectedDate, { type: "editItem", id, name: editName.trim(), price, hotPrice, icePrice, stock }));
     setEditId(null);
   };
 
@@ -273,7 +294,7 @@ export default function SettingsView({
       <div className="bg-white rounded-xl border border-stone-200 shadow-[0_1px_3px_rgba(40,33,26,0.05)] p-6">
         <h2 className="text-sm font-semibold text-stone-800 mb-4 flex items-center gap-1.5">
           メニュー設定
-          <InfoTip text="商品を追加・編集・並び替え・削除できます。各商品は「販売中 / 在庫なし」も切り替えられます。メニューは営業日ごとに保存されます。" align="left" />
+          <InfoTip text="商品を追加・編集・並び替え・削除できます。各商品は「販売中 / 在庫なし」も切り替えられます。「在庫」に数を入れると注文のたびに自動で減り、0になるとレジで注文できなくなります（空欄なら在庫管理なし）。メニューは営業日ごとに保存されます。" align="left" />
         </h2>
         <form onSubmit={handleAddItem} className="flex flex-col gap-2.5 mb-6 bg-stone-50 p-3.5 rounded-lg border border-stone-200">
           <div className="flex flex-col sm:flex-row gap-2.5">
@@ -291,6 +312,7 @@ export default function SettingsView({
             <PriceInput label="通常" placeholder="HOT/ICE なし" value={newItemPrice} onChange={setNewItemPrice} />
             <PriceInput label="HOT" placeholder="HOT価格" value={newItemHotPrice} onChange={setNewItemHotPrice} color="red" />
             <PriceInput label="ICE" placeholder="ICE価格" value={newItemIcePrice} onChange={setNewItemIcePrice} color="blue" />
+            <StockInput value={newItemStock} onChange={setNewItemStock} />
           </div>
         </form>
 
@@ -315,6 +337,7 @@ export default function SettingsView({
                           <PriceInput label="通常" placeholder="HOT/ICEなし" value={editPrice} onChange={setEditPrice} />
                           <PriceInput label="HOT" placeholder="HOT価格" value={editHotPrice} onChange={setEditHotPrice} color="red" />
                           <PriceInput label="ICE" placeholder="ICE価格" value={editIcePrice} onChange={setEditIcePrice} color="blue" />
+                          <StockInput value={editStock} onChange={setEditStock} />
                         </div>
                       </div>
                     ) : (
@@ -329,6 +352,9 @@ export default function SettingsView({
                           )}
                           {item.hotPrice == null && item.icePrice == null && (
                             <span className="text-sm font-mono font-semibold text-stone-500 tnum">¥{item.price.toLocaleString()}</span>
+                          )}
+                          {item.stock != null && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tnum ${item.stock === 0 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"}`}>在庫 {item.stock}</span>
                           )}
                         </div>
                       </>

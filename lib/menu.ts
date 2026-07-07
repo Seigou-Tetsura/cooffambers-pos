@@ -1,6 +1,7 @@
 import { doc, runTransaction } from "firebase/firestore";
 import { db } from "./firebase";
 import { RawMenuItem, CatDef, DEFAULT_CATEGORIES } from "./types";
+import { parseToNumber } from "./utils";
 
 // undefined値を除去（Firestoreは配列要素内でundefinedもdeleteField()も非対応）
 function sanitizeItem(item: Record<string, unknown>): Record<string, unknown> {
@@ -15,8 +16,10 @@ function sanitizeItem(item: Record<string, unknown>): Record<string, unknown> {
 export type MenuAction =
   | { type: "add"; item: RawMenuItem }
   | { type: "delete"; id: string }
-  | { type: "editItem"; id: string; name: string; price: number; hotPrice?: number; icePrice?: number }
+  | { type: "editItem"; id: string; name: string; price: number; hotPrice?: number; icePrice?: number; stock?: number }
   | { type: "moveItem"; id: string; dir: -1 | 1 }
+  | { type: "setStock"; id: string; value: number | null } // null = 在庫管理をやめる
+  | { type: "consumeStock"; deltas: { id: string; qty: number }[] } // 注文確定時に在庫を減算（0で下限クランプ）
   | { type: "toggleTicket"; value: boolean }
   | { type: "toggleAvgTime"; value: boolean }
   | { type: "toggleSoldOut"; id: string; value: boolean }
@@ -60,10 +63,26 @@ export async function mutateMenu(date: string, action: MenuAction): Promise<void
       case "editItem":
         items = items.map((i) =>
           String(i.id) === action.id
-            ? sanitizeItem({ ...i, name: action.name, price: action.price, hotPrice: action.hotPrice, icePrice: action.icePrice }) as unknown as RawMenuItem
+            ? sanitizeItem({ ...i, name: action.name, price: action.price, hotPrice: action.hotPrice, icePrice: action.icePrice, stock: action.stock }) as unknown as RawMenuItem
             : i
         );
         break;
+      case "setStock":
+        items = items.map((i) =>
+          String(i.id) === action.id
+            ? sanitizeItem({ ...i, stock: action.value === null ? undefined : Math.max(0, action.value) }) as unknown as RawMenuItem
+            : i
+        );
+        break;
+      case "consumeStock": {
+        const deltaMap = new Map(action.deltas.map((d) => [d.id, d.qty]));
+        items = items.map((i) => {
+          const qty = deltaMap.get(String(i.id));
+          if (!qty || i.stock == null) return i;
+          return { ...i, stock: Math.max(0, parseToNumber(i.stock) - qty) };
+        });
+        break;
+      }
       case "moveItem": {
         const idx = items.findIndex((i) => String(i.id) === action.id);
         items = swap(items, idx, idx + action.dir);

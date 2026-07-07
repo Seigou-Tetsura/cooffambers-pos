@@ -28,6 +28,7 @@ export interface MenuItem {
   soldOut: boolean;
   hotPrice?: number;   // Hot の価格（未設定 = Hot 非対応）
   icePrice?: number;   // Ice の価格（未設定 = Ice 非対応）
+  stock?: number;      // 残り在庫数（未設定 = 在庫管理しない）。HOT/ICE 共通で商品単位
 }
 
 // Firestore から読み込んだ生データ（型が不定なので一度受ける）
@@ -39,6 +40,7 @@ export interface RawMenuItem {
   soldOut?: boolean;
   hotPrice?: string | number;
   icePrice?: string | number;
+  stock?: string | number;
 }
 
 export interface CartItem {
@@ -61,4 +63,5 @@ export interface Order {
   createdAt: Timestamp | null;
   completedAt?: Timestamp | null; // 提供完了した時刻（完了一覧の並び替え用）
   ticketNumber?: string | null;
+  handedAtRegister?: boolean; // 全品レジで受け渡し済み（バリスタ工程なし。平均提供時間の集計から除外）
 }

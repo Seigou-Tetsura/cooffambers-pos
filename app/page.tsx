@@ -6,7 +6,8 @@ import { collection, query, where, orderBy, onSnapshot, doc } from "firebase/fir
 import { db, ensureSignedIn } from "../lib/firebase";
 import { Mode, MenuItem, RawMenuItem, Order, CatDef, DEFAULT_CATEGORIES } from "../lib/types";
 import { parseToNumber } from "../lib/utils";
-import { ToastProvider } from "../lib/toast";
+import { ToastProvider, useToast } from "../lib/toast";
+import { playOrderChime } from "../lib/sound";
 import { InfoTip } from "../lib/info";
 import CashierView from "./cashier-view";
 import BaristaView from "./barista-view";
@@ -16,6 +17,44 @@ import SettingsView from "./settings-view";
 const Loading = () => <div className="text-center py-24 text-stone-400 text-sm tracking-wide">読み込み中…</div>;
 const DashboardView = dynamic(() => import("./dashboard-view"), { loading: Loading, ssr: false });
 const PeriodView = dynamic(() => import("./period-view"), { loading: Loading, ssr: false });
+
+// ==========================================
+// 新着オーダー通知
+// Firestore スナップショットに「見たことのない注文」が現れたらトースト＋チャイムで知らせる。
+// バリスタ画面を開いている端末にだけ通知する（レジ端末では自分の送信に反応してうるさいため）
+// ==========================================
+function OrderNotifier({ orders, isOrdersLoading, active, soundOn }: { orders: Order[]; isOrdersLoading: boolean; active: boolean; soundOn: boolean }) {
+  const { showToast } = useToast();
+  const seenIds = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    // 読み込み中＝購読の切り替え中（営業日変更など）。既知IDを破棄して次のスナップショットで取り直す。
+    // こうしないと日付切替時に「前の日のID集合 vs 新しい日の注文」の差分が全部新着扱いになる
+    if (isOrdersLoading) {
+      seenIds.current = null;
+      return;
+    }
+    // 購読直後の最初のスナップショットは既存分の読み込みなので通知しない（IDを覚えるだけ）
+    if (seenIds.current === null) {
+      seenIds.current = new Set(orders.map((o) => o.id));
+      return;
+    }
+    const fresh = orders.filter((o) => !seenIds.current!.has(o.id));
+    fresh.forEach((o) => seenIds.current!.add(o.id));
+    // 通知対象は製造が必要な注文だけ（レジで全品受け渡し済みの注文は除く）
+    const newPending = fresh.filter((o) => o.status === "pending");
+    if (newPending.length === 0 || !active) return;
+    const itemCount = newPending.reduce((sum, o) => sum + (o.items?.reduce((s, i) => s + i.quantity, 0) ?? 0), 0);
+    const label =
+      newPending.length === 1
+        ? `🔔 新しいオーダー${newPending[0].ticketNumber ? `（整理番号 ${newPending[0].ticketNumber}）` : ""} — ${itemCount}品`
+        : `🔔 新しいオーダー ${newPending.length}件 — 計${itemCount}品`;
+    showToast(label, "info");
+    if (soundOn) playOrderChime();
+  }, [orders, isOrdersLoading, active, soundOn, showToast]);
+
+  return null;
+}
 
 const NAV: { mode: Mode; label: string; accent: string }[] = [
   { mode: "cashier", label: "📝 レジ入力", accent: "#ea580c" },
@@ -41,6 +80,18 @@ export default function App() {
   // 整理番号は App 側で保持（タブを切り替えてもリセットされないように）
   const [ticketNumber, setTicketNumber] = useState("");
   const ticketInitialized = useRef(false);
+
+  // 通知音のON/OFF（端末ごとに localStorage で記憶。SSRとの不一致を避けるため初期値はOFF→マウント後に復元）
+  const [soundOn, setSoundOn] = useState(false);
+  useEffect(() => {
+    setSoundOn(localStorage.getItem("cooffambers-notify-sound") !== "off");
+  }, []);
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    localStorage.setItem("cooffambers-notify-sound", next ? "on" : "off");
+    if (next) playOrderChime(); // ユーザー操作の時点で音声をアンロックしつつ試聴を兼ねる
+  };
 
   // 認証（匿名サインイン）が済んでから Firestore を購読する。
   // ルールが request.auth != null の場合、サインイン前の購読は権限エラーになるため
@@ -82,6 +133,7 @@ export default function App() {
           soldOut: Boolean(item.soldOut),
           ...(item.hotPrice != null && { hotPrice: parseToNumber(item.hotPrice) }),
           ...(item.icePrice != null && { icePrice: parseToNumber(item.icePrice) }),
+          ...(item.stock != null && { stock: parseToNumber(item.stock) }),
         }));
         setMenuItems(safeItems);
         const rawCats = docSnap.data().categories as CatDef[] | undefined;
@@ -133,6 +185,7 @@ export default function App() {
 
   return (
     <ToastProvider>
+      <OrderNotifier key={selectedDate} orders={orders} isOrdersLoading={isOrdersLoading} active={mode === "barista"} soundOn={soundOn} />
       <div className="min-h-screen bg-[#f3efe7] text-stone-800">
         <header className="bg-[#f3efe7]/85 backdrop-blur-md border-b border-stone-200/70 sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
@@ -211,7 +264,9 @@ export default function App() {
               setTicketNumber={setTicketNumber}
             />
           )}
-          {authReady && mode === "barista" && <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} selectedDate={selectedDate} />}
+          {authReady && mode === "barista" && (
+            <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} categories={categories} selectedDate={selectedDate} soundOn={soundOn} onToggleSound={toggleSound} />
+          )}
           {authReady && mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} menuItems={menuItems} categories={categories} />}
           {authReady && mode === "period" && <PeriodView />}
           {authReady && mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} categories={categories} useTicket={useTicket} showAvgTime={showAvgTime} />}
