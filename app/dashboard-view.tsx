@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
 import { Order, MenuItem, CatDef } from "../lib/types";
+import { cancelOrderWithRestock } from "../lib/menu";
 import { groupOrderItems, escapeCsv, computeCompletion, formatElapsed } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
@@ -24,7 +23,7 @@ export default function DashboardView({
   menuItems: MenuItem[];
   categories: CatDef[];
 }) {
-  const { showError } = useToast();
+  const { showError, showToast } = useToast();
   const [selectedHourTab, setSelectedHourTab] = useState<string>("");
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
@@ -107,8 +106,10 @@ export default function DashboardView({
     if (isCancelling) return;
     setIsCancelling(id);
     try {
-      await updateDoc(doc(db, "orders", id), { status: "cancelled" });
+      // 取消と同時に、在庫管理中の商品の在庫をそのオーダー分だけ足し戻す
+      const restockedQty = await cancelOrderWithRestock(id);
       setConfirmCancelId(null);
+      if (restockedQty > 0) showToast(`注文を取消し、在庫を${restockedQty}点戻しました`);
     } catch (e) {
       console.error(e);
       showError("注文の取消に失敗しました。");

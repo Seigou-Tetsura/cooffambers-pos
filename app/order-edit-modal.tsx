@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../lib/firebase";
 import { Order, CartItem, MenuItem, CatDef } from "../lib/types";
+import { updateOrderWithStockAdjust } from "../lib/menu";
 import { useToast } from "../lib/toast";
 
 // ==========================================
@@ -58,12 +57,13 @@ export default function OrderEditModal({
     }
     setIsSaving(true);
     try {
-      await updateDoc(doc(db, "orders", order.id), { items, totalPrice: total, updatedAt: serverTimestamp() });
-      showToast("注文を更新しました");
+      // 編集前後の数量差分だけ在庫も増減する（在庫管理中の商品のみ）
+      const adjustedKinds = await updateOrderWithStockAdjust(order.id, items, total);
+      showToast(adjustedKinds > 0 ? "注文を更新し、在庫も調整しました" : "注文を更新しました");
       onClose();
     } catch (e) {
       console.error(e);
-      showError("注文の更新に失敗しました。");
+      showError(e instanceof Error && e.message.includes("取消済") ? e.message : "注文の更新に失敗しました。");
     } finally {
       setIsSaving(false);
     }

@@ -1,7 +1,7 @@
-import { doc, runTransaction } from "firebase/firestore";
+import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase";
-import { RawMenuItem, CatDef, DEFAULT_CATEGORIES } from "./types";
-import { parseToNumber } from "./utils";
+import { RawMenuItem, CartItem, CatDef, DEFAULT_CATEGORIES } from "./types";
+import { parseToNumber, baseItemId } from "./utils";
 
 // undefined値を除去（Firestoreは配列要素内でundefinedもdeleteField()も非対応）
 function sanitizeItem(item: Record<string, unknown>): Record<string, unknown> {
@@ -130,5 +130,95 @@ export async function mutateMenu(date: string, action: MenuAction): Promise<void
     }
 
     transaction.set(ref, { items, useTicket, showAvgTime, categories }, { merge: true });
+  });
+}
+
+// ==========================================
+// 注文の取消＋在庫の足し戻し
+// ステータス更新と在庫加算を同じ Transaction で行うことで、
+// 2台の端末が同時に取消しても在庫が二重に戻らないようにする
+// ==========================================
+export async function cancelOrderWithRestock(orderId: string): Promise<number> {
+  return await runTransaction(db, async (transaction) => {
+    const orderRef = doc(db, "orders", orderId);
+    const orderSnap = await transaction.get(orderRef);
+    if (!orderSnap.exists()) throw new Error("注文が見つかりません");
+    const order = orderSnap.data() as { status?: string; date?: string; items?: CartItem[] };
+    if (order.status === "cancelled") return 0; // 既に他の端末で取消済み
+
+    // 商品ID（HOT/ICE の枝番を除く）ごとの数量を集計
+    const qtyByBase = new Map<string, number>();
+    (order.items ?? []).forEach((i) => {
+      const base = baseItemId(String(i.id));
+      qtyByBase.set(base, (qtyByBase.get(base) || 0) + parseToNumber(i.quantity));
+    });
+
+    // 在庫管理中の商品にだけ数量を足し戻す（メニューから削除済みの商品はスキップ）
+    let restockedQty = 0;
+    if (order.date && qtyByBase.size > 0) {
+      const menuRef = doc(db, "menus", order.date);
+      const menuSnap = await transaction.get(menuRef);
+      if (menuSnap.exists()) {
+        const data = menuSnap.data() as MenuDoc;
+        const items = (data.items ?? []).map((i) => {
+          const qty = qtyByBase.get(String(i.id));
+          if (!qty || i.stock == null) return i;
+          restockedQty += qty;
+          return { ...i, stock: parseToNumber(i.stock) + qty };
+        });
+        if (restockedQty > 0) transaction.set(menuRef, { items }, { merge: true });
+      }
+    }
+
+    transaction.update(orderRef, { status: "cancelled" });
+    return restockedQty;
+  });
+}
+
+// ==========================================
+// 注文の編集保存＋在庫の差分調整
+// 編集前後の数量差分だけ在庫を増減する（増えた分は減算、減った分は足し戻し）。
+// 取消と同様、注文の更新と在庫の調整を同じ Transaction で行う
+// ==========================================
+// 戻り値: 在庫を調整した商品の種類数（0 = 在庫管理中の商品に増減なし）
+export async function updateOrderWithStockAdjust(orderId: string, newItems: CartItem[], newTotalPrice: number): Promise<number> {
+  return await runTransaction(db, async (transaction) => {
+    const orderRef = doc(db, "orders", orderId);
+    const orderSnap = await transaction.get(orderRef);
+    if (!orderSnap.exists()) throw new Error("注文が見つかりません");
+    const order = orderSnap.data() as { status?: string; date?: string; items?: CartItem[] };
+    // 取消済みの注文は在庫が既に足し戻されているため、ここで編集すると在庫がズレる
+    if (order.status === "cancelled") throw new Error("この注文は取消済みのため編集できません");
+
+    // 商品ID（HOT/ICE の枝番を除く）ごとに「編集後 − 編集前」の数量差分を集計
+    const deltaByBase = new Map<string, number>();
+    (order.items ?? []).forEach((i) => {
+      const base = baseItemId(String(i.id));
+      deltaByBase.set(base, (deltaByBase.get(base) || 0) - parseToNumber(i.quantity));
+    });
+    newItems.forEach((i) => {
+      const base = baseItemId(String(i.id));
+      deltaByBase.set(base, (deltaByBase.get(base) || 0) + parseToNumber(i.quantity));
+    });
+
+    // 在庫管理中の商品にだけ差分を適用（メニューから削除済みの商品はスキップ。0で下限クランプ）
+    let adjustedKinds = 0;
+    if (order.date) {
+      const menuRef = doc(db, "menus", order.date);
+      const menuSnap = await transaction.get(menuRef);
+      if (menuSnap.exists()) {
+        const data = menuSnap.data() as MenuDoc;
+        const items = (data.items ?? []).map((i) => {
+          const delta = deltaByBase.get(String(i.id));
+          if (!delta || i.stock == null) return i;
+          adjustedKinds += 1;
+          return { ...i, stock: Math.max(0, parseToNumber(i.stock) - delta) };
+        });
+        if (adjustedKinds > 0) transaction.set(menuRef, { items }, { merge: true });
+      }
+    }
+
+    transaction.update(orderRef, { items: newItems, totalPrice: newTotalPrice, updatedAt: serverTimestamp() });
+    return adjustedKinds;
   });
 }
