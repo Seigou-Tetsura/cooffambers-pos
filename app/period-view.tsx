@@ -7,6 +7,7 @@ import { Order } from "../lib/types";
 import { escapeCsv } from "../lib/utils";
 import { useToast } from "../lib/toast";
 import { InfoTip } from "../lib/info";
+import { StoreDef, orderStoreId } from "../lib/stores";
 
 // ==========================================
 // 期間集計（PeriodView）
@@ -14,7 +15,7 @@ import { InfoTip } from "../lib/info";
 // ==========================================
 const toDateStr = (d: Date) => d.toISOString().split("T")[0];
 
-export default function PeriodView() {
+export default function PeriodView({ stores }: { stores: StoreDef[] }) {
   const { showError } = useToast();
   const today = useMemo(() => new Date(), []);
   const defaultFrom = useMemo(() => {
@@ -27,6 +28,8 @@ export default function PeriodView() {
   const [to, setTo] = useState(toDateStr(today));
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState<Order[] | null>(null);
+  const [storeFilter, setStoreFilter] = useState("all"); // "all" = 全店舗合計
+  const storeLabel = storeFilter === "all" ? null : stores.find((s) => s.id === storeFilter)?.name ?? storeFilter;
 
   const fetchRange = useCallback(async () => {
     if (from > to) {
@@ -58,6 +61,7 @@ export default function PeriodView() {
 
     for (const o of orders) {
       if (o.status === "cancelled") continue;
+      if (storeFilter !== "all" && orderStoreId(o) !== storeFilter) continue;
       validCount += 1;
       totalSales += o.totalPrice;
       if (!daily[o.date]) daily[o.date] = { sales: 0, count: 0 };
@@ -76,7 +80,7 @@ export default function PeriodView() {
     const avgPerDay = days > 0 ? Math.round(totalSales / days) : 0;
 
     return { totalSales, validCount, dailyArr, maxDaily, rankingArr, days, avgPerDay };
-  }, [orders]);
+  }, [orders, storeFilter]);
 
   const handleExportCSV = () => {
     if (!agg || agg.dailyArr.length === 0) {
@@ -91,7 +95,7 @@ export default function PeriodView() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `期間集計_${from}_${to}.csv`);
+    link.setAttribute("download", `期間集計_${from}_${to}${storeLabel ? `_${storeLabel}` : ""}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -122,6 +126,19 @@ export default function PeriodView() {
             <label className="block text-xs text-stone-400 font-medium mb-1.5">終了日</label>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full border border-stone-300 rounded-md px-2.5 py-2 text-stone-800 bg-white font-medium tnum focus:outline-none focus:border-[#8a7390] focus:ring-2 focus:ring-[#8a7390]/15" />
           </div>
+          {stores.length > 1 && (
+            <div className="flex-1">
+              <label className="block text-xs text-stone-400 font-medium mb-1.5">店舗</label>
+              <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} className="w-full border border-stone-300 rounded-md px-2.5 py-2 text-stone-800 bg-white font-medium focus:outline-none focus:border-[#8a7390] focus:ring-2 focus:ring-[#8a7390]/15">
+                <option value="all">全店舗の合計</option>
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <button onClick={fetchRange} disabled={loading} className="px-6 py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-medium tracking-wide rounded-lg transition-colors active:scale-[0.99] disabled:opacity-50 whitespace-nowrap">
             {loading ? "集計中…" : "集計する"}
           </button>

@@ -15,11 +15,13 @@ import OrderEditModal from "./order-edit-modal";
 export default function DashboardView({
   orders,
   selectedDate,
+  storeName,
   menuItems,
   categories,
 }: {
   orders: Order[];
   selectedDate: string;
+  storeName: string | null; // 店舗が複数あるときだけ店舗名（CSVのファイル名に入れる）
   menuItems: MenuItem[];
   categories: CatDef[];
 }) {
@@ -152,7 +154,7 @@ export default function DashboardView({
     link.href = url;
     const now = new Date();
     const timeSuffix = `${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
-    link.setAttribute("download", `売上明細_${selectedDate}_${timeSuffix}.csv`);
+    link.setAttribute("download", `売上明細_${selectedDate}${storeName ? `_${storeName}` : ""}_${timeSuffix}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

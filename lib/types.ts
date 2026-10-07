@@ -60,6 +60,7 @@ export interface Order {
   totalPrice: number;
   status: "pending" | "completed" | "cancelled"; // 物理削除を廃止し「取消済」を採用
   date: string;
+  store?: string; // 店舗ID（未設定 = メイン店舗。lib/stores.ts）
   createdAt: Timestamp | null;
   completedAt?: Timestamp | null; // 提供完了した時刻（完了一覧の並び替え用）
   ticketNumber?: string | null;

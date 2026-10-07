@@ -9,6 +9,7 @@ import { parseToNumber } from "../lib/utils";
 import { ToastProvider, useToast } from "../lib/toast";
 import { playOrderChime } from "../lib/sound";
 import { InfoTip } from "../lib/info";
+import { StoreDef, DEFAULT_STORES, MAIN_STORE_ID, menuDocId, orderStoreId } from "../lib/stores";
 import CashierView from "./cashier-view";
 import BaristaView from "./barista-view";
 import SettingsView from "./settings-view";
@@ -68,7 +69,20 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("cashier");
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
 
-  const [orders, setOrders] = useState<Order[]>([]);
+  // 店舗（学祭の模擬店／教室など）。一覧は全端末共通、どの店舗を操作するかは端末ごとに localStorage で記憶
+  const [stores, setStores] = useState<StoreDef[]>(DEFAULT_STORES);
+  const [savedStoreId, setStoreId] = useState(MAIN_STORE_ID);
+  const [storesLoaded, setStoresLoaded] = useState(false);
+  useEffect(() => {
+    const saved = localStorage.getItem("cooffambers-store");
+    if (saved) setStoreId(saved);
+  }, []);
+  const changeStore = (id: string) => {
+    setStoreId(id);
+    localStorage.setItem("cooffambers-store", id);
+  };
+
+  const [dayOrders, setDayOrders] = useState<Order[]>([]); // 営業日の全店舗分
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<CatDef[]>(DEFAULT_CATEGORIES);
   const [useTicket, setUseTicket] = useState(false);
@@ -107,7 +121,7 @@ export default function App() {
       (snapshot) => {
         const data: Order[] = [];
         snapshot.forEach((d) => data.push({ id: d.id, ...d.data() } as Order));
-        setOrders(data);
+        setDayOrders(data);
         setIsOrdersLoading(false);
       },
       (error) => {
@@ -118,10 +132,30 @@ export default function App() {
     return () => unsubscribe();
   }, [selectedDate, authReady]);
 
+  // 店舗一覧の購読
+  useEffect(() => {
+    if (!authReady) return;
+    const unsubscribe = onSnapshot(doc(db, "config", "stores"), (docSnap) => {
+      const raw = docSnap.exists() ? (docSnap.data().stores as StoreDef[] | undefined) : undefined;
+      setStores(Array.isArray(raw) && raw.length ? raw.map((s) => ({ id: String(s.id), name: String(s.name) })) : DEFAULT_STORES);
+      setStoresLoaded(true);
+    });
+    return () => unsubscribe();
+  }, [authReady]);
+
+  // 選んでいた店舗が一覧に無い（他の端末で削除された等）ならメインとして扱う
+  const storeId = !storesLoaded || stores.some((s) => s.id === savedStoreId) ? savedStoreId : MAIN_STORE_ID;
+  const menuKey = menuDocId(selectedDate, storeId);
+  const storeName = stores.find((s) => s.id === storeId)?.name ?? "メイン";
+
+  // 表示中の店舗の注文だけに絞る（注文番号・整理番号・売上・バリスタ画面はすべて店舗ごと）。
+  // Firestore 側で store を条件に足すと複合インデックスが要るため、営業日で取ってから端末側で絞る
+  const orders = useMemo(() => dayOrders.filter((o) => orderStoreId(o) === storeId), [dayOrders, storeId]);
+
   useEffect(() => {
     if (!authReady) return;
     setIsMenuLoading(true);
-    const menuRef = doc(db, "menus", selectedDate);
+    const menuRef = doc(db, "menus", menuKey);
     const unsubscribe = onSnapshot(menuRef, (docSnap) => {
       if (docSnap.exists()) {
         const rawItems = (docSnap.data().items || []) as RawMenuItem[];
@@ -153,7 +187,7 @@ export default function App() {
       setIsMenuLoading(false);
     });
     return () => unsubscribe();
-  }, [selectedDate, authReady]);
+  }, [menuKey, authReady]);
 
   // 整理番号の自動採番: 既存注文の最大番号 + 1（無ければ 1）
   const suggestedTicket = useMemo(() => {
@@ -166,26 +200,27 @@ export default function App() {
     return max + 1;
   }, [orders]);
 
-  // 営業日を切り替えたら採番をリセット
+  // 営業日・店舗を切り替えたら採番をリセット
   useEffect(() => {
     ticketInitialized.current = false;
     setTicketNumber("");
-  }, [selectedDate]);
+  }, [menuKey]);
 
-  // 注文読み込み後に初期の整理番号をセット（営業日ごとに1回だけ）
+  // 注文・メニュー読み込み後に初期の整理番号をセット（営業日・店舗ごとに1回だけ）。
+  // 店舗の切り替えでは注文の再購読が起きないので、menuKey とメニューの読み込み完了も見る
   useEffect(() => {
-    if (useTicket && !isOrdersLoading && !ticketInitialized.current) {
+    if (useTicket && !isOrdersLoading && !isMenuLoading && !ticketInitialized.current) {
       setTicketNumber(String(suggestedTicket));
       ticketInitialized.current = true;
     }
-  }, [useTicket, isOrdersLoading, suggestedTicket]);
+  }, [useTicket, isOrdersLoading, isMenuLoading, suggestedTicket, menuKey]);
 
   const pendingOrdersCount = useMemo(() => orders.filter((o) => o.status === "pending").length, [orders]);
   const activeAccent = NAV.find((n) => n.mode === mode)?.accent ?? "#8a5a3b";
 
   return (
     <ToastProvider>
-      <OrderNotifier key={selectedDate} orders={orders} isOrdersLoading={isOrdersLoading} active={mode === "barista"} soundOn={soundOn} />
+      <OrderNotifier key={menuKey} orders={orders} isOrdersLoading={isOrdersLoading} active={mode === "barista"} soundOn={soundOn} />
       <div className="min-h-screen bg-[#f3efe7] text-stone-800">
         <header className="bg-[#f3efe7]/85 backdrop-blur-md border-b border-stone-200/70 sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
@@ -234,7 +269,27 @@ export default function App() {
         </header>
 
         <div className="border-b border-stone-200/70">
-          <div className="max-w-6xl mx-auto px-5 py-2.5 flex items-center justify-end gap-2.5 text-sm">
+          <div className="max-w-6xl mx-auto px-5 py-2.5 flex flex-wrap items-center justify-end gap-2.5 text-sm">
+            {stores.length > 1 && (
+              <>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1">
+                  店舗
+                  <InfoTip text="この端末で操作する店舗（出店場所）を選びます。メニュー・在庫・注文・整理番号・売上は店舗ごとに別々です。選んだ店舗は端末ごとに記憶されます。店舗の追加は「設定」から。" align="right" />
+                </span>
+                <select
+                  value={storeId}
+                  onChange={(e) => changeStore(e.target.value)}
+                  style={{ outlineColor: activeAccent }}
+                  className="border border-stone-300 rounded-md px-2.5 py-1 text-stone-800 bg-white/70 font-semibold focus:outline-none focus:border-stone-400 mr-2"
+                >
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-400 flex items-center gap-1">
               営業日
               <InfoTip text="操作する日付を選びます。メニュー・注文・売上はすべてこの営業日ごとに保存・表示されます。別の日に切り替えると、その日のデータに変わります。" align="right" />
@@ -254,6 +309,8 @@ export default function App() {
           {authReady && mode === "cashier" && (
             <CashierView
               selectedDate={selectedDate}
+              storeId={storeId}
+              menuKey={menuKey}
               menuItems={menuItems}
               categories={categories}
               isMenuLoading={isMenuLoading}
@@ -265,11 +322,11 @@ export default function App() {
             />
           )}
           {authReady && mode === "barista" && (
-            <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} categories={categories} selectedDate={selectedDate} soundOn={soundOn} onToggleSound={toggleSound} />
+            <BaristaView orders={orders} isOrdersLoading={isOrdersLoading} menuItems={menuItems} categories={categories} menuKey={menuKey} soundOn={soundOn} onToggleSound={toggleSound} />
           )}
-          {authReady && mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} menuItems={menuItems} categories={categories} />}
-          {authReady && mode === "period" && <PeriodView />}
-          {authReady && mode === "settings" && <SettingsView selectedDate={selectedDate} menuItems={menuItems} categories={categories} useTicket={useTicket} showAvgTime={showAvgTime} />}
+          {authReady && mode === "dashboard" && <DashboardView orders={orders} selectedDate={selectedDate} storeName={stores.length > 1 ? storeName : null} menuItems={menuItems} categories={categories} />}
+          {authReady && mode === "period" && <PeriodView stores={stores} />}
+          {authReady && mode === "settings" && <SettingsView menuKey={menuKey} stores={stores} storeId={storeId} onChangeStore={changeStore} menuItems={menuItems} categories={categories} useTicket={useTicket} showAvgTime={showAvgTime} />}
         </main>
       </div>
     </ToastProvider>

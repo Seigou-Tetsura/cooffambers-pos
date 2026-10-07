@@ -2,6 +2,7 @@ import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase";
 import { RawMenuItem, CartItem, CatDef, DEFAULT_CATEGORIES } from "./types";
 import { parseToNumber, baseItemId } from "./utils";
+import { menuDocId, orderStoreId } from "./stores";
 
 // undefined値を除去（Firestoreは配列要素内でundefinedもdeleteField()も非対応）
 function sanitizeItem(item: Record<string, unknown>): Record<string, unknown> {
@@ -9,7 +10,7 @@ function sanitizeItem(item: Record<string, unknown>): Record<string, unknown> {
 }
 
 // ==========================================
-// メニュー（menus/{営業日}）の安全な更新
+// メニュー（menus/{営業日} または menus/{営業日}__{店舗ID}）の安全な更新
 // 複数人が同時に設定を触ってもデータが先祖返りしないよう
 // 必ず Transaction + merge で適用する
 // ==========================================
@@ -43,9 +44,10 @@ const swap = <T>(arr: T[], i: number, j: number): T[] => {
   return next;
 };
 
-export async function mutateMenu(date: string, action: MenuAction): Promise<void> {
+// menuKey は lib/stores.ts の menuDocId(営業日, 店舗ID) で作る
+export async function mutateMenu(menuKey: string, action: MenuAction): Promise<void> {
   await runTransaction(db, async (transaction) => {
-    const ref = doc(db, "menus", date);
+    const ref = doc(db, "menus", menuKey);
     const snap = await transaction.get(ref);
     const data: MenuDoc = snap.exists() ? (snap.data() as MenuDoc) : {};
     let items: RawMenuItem[] = data.items ?? [];
@@ -143,7 +145,7 @@ export async function cancelOrderWithRestock(orderId: string): Promise<number> {
     const orderRef = doc(db, "orders", orderId);
     const orderSnap = await transaction.get(orderRef);
     if (!orderSnap.exists()) throw new Error("注文が見つかりません");
-    const order = orderSnap.data() as { status?: string; date?: string; items?: CartItem[] };
+    const order = orderSnap.data() as { status?: string; date?: string; store?: string; items?: CartItem[] };
     if (order.status === "cancelled") return 0; // 既に他の端末で取消済み
 
     // 商品ID（HOT/ICE の枝番を除く）ごとの数量を集計
@@ -156,7 +158,7 @@ export async function cancelOrderWithRestock(orderId: string): Promise<number> {
     // 在庫管理中の商品にだけ数量を足し戻す（メニューから削除済みの商品はスキップ）
     let restockedQty = 0;
     if (order.date && qtyByBase.size > 0) {
-      const menuRef = doc(db, "menus", order.date);
+      const menuRef = doc(db, "menus", menuDocId(order.date, orderStoreId(order)));
       const menuSnap = await transaction.get(menuRef);
       if (menuSnap.exists()) {
         const data = menuSnap.data() as MenuDoc;
@@ -186,7 +188,7 @@ export async function updateOrderWithStockAdjust(orderId: string, newItems: Cart
     const orderRef = doc(db, "orders", orderId);
     const orderSnap = await transaction.get(orderRef);
     if (!orderSnap.exists()) throw new Error("注文が見つかりません");
-    const order = orderSnap.data() as { status?: string; date?: string; items?: CartItem[] };
+    const order = orderSnap.data() as { status?: string; date?: string; store?: string; items?: CartItem[] };
     // 取消済みの注文は在庫が既に足し戻されているため、ここで編集すると在庫がズレる
     if (order.status === "cancelled") throw new Error("この注文は取消済みのため編集できません");
 
@@ -204,7 +206,7 @@ export async function updateOrderWithStockAdjust(orderId: string, newItems: Cart
     // 在庫管理中の商品にだけ差分を適用（メニューから削除済みの商品はスキップ。0で下限クランプ）
     let adjustedKinds = 0;
     if (order.date) {
-      const menuRef = doc(db, "menus", order.date);
+      const menuRef = doc(db, "menus", menuDocId(order.date, orderStoreId(order)));
       const menuSnap = await transaction.get(menuRef);
       if (menuSnap.exists()) {
         const data = menuSnap.data() as MenuDoc;

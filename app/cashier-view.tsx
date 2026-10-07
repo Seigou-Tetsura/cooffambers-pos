@@ -15,6 +15,8 @@ import { InfoTip } from "../lib/info";
 // ==========================================
 export default function CashierView({
   selectedDate,
+  storeId,
+  menuKey,
   menuItems,
   categories,
   isMenuLoading,
@@ -25,6 +27,8 @@ export default function CashierView({
   setTicketNumber,
 }: {
   selectedDate: string;
+  storeId: string;
+  menuKey: string; // menus のドキュメントID（営業日＋店舗。lib/stores.ts）
   menuItems: MenuItem[];
   categories: CatDef[];
   isMenuLoading: boolean;
@@ -161,7 +165,7 @@ export default function CashierView({
 
     setIsSubmitting(true);
     try {
-      // 営業日内の連番（既存注文の最大値 + 1）。時刻由来の擬似番号は衝突しうるため廃止
+      // 営業日・店舗内の連番（既存注文の最大値 + 1。orders は表示中の店舗の分だけ）。時刻由来の擬似番号は衝突しうるため廃止
       const shortOrderNumber = orders.reduce((max, o) => Math.max(max, o.orderNumber || 0), 0) + 1;
       const change = (cashReceived ?? 0) - totalAmount;
       // 全品レジで受け渡し済みなら、バリスタを経由せずそのまま提供完了として登録する
@@ -172,6 +176,7 @@ export default function CashierView({
         totalPrice: totalAmount,
         status: allHanded ? "completed" : "pending",
         date: selectedDate,
+        store: storeId,
         createdAt: serverTimestamp(),
         ticketNumber: submittedTicket,
         ...(allHanded && { completedAt: serverTimestamp(), handedAtRegister: true }),
@@ -182,7 +187,7 @@ export default function CashierView({
         .map(([baseId, qty]) => ({ id: baseId, qty }));
       if (stockDeltas.length > 0) {
         try {
-          await mutateMenu(selectedDate, { type: "consumeStock", deltas: stockDeltas });
+          await mutateMenu(menuKey, { type: "consumeStock", deltas: stockDeltas });
         } catch (e) {
           console.error("在庫減算エラー:", e);
           showError("注文は登録されましたが、在庫数の更新に失敗しました。在庫・品切れ画面で数を確認してください。");

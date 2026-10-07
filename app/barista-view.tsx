@@ -24,7 +24,7 @@ export default function BaristaView({
   isOrdersLoading,
   menuItems,
   categories,
-  selectedDate,
+  menuKey,
   soundOn,
   onToggleSound,
 }: {
@@ -32,7 +32,7 @@ export default function BaristaView({
   isOrdersLoading: boolean;
   menuItems: MenuItem[];
   categories: CatDef[];
-  selectedDate: string;
+  menuKey: string; // menus のドキュメントID（営業日＋店舗。lib/stores.ts）
   soundOn: boolean;
   onToggleSound: () => void;
 }) {
@@ -110,7 +110,7 @@ export default function BaristaView({
     if (togglingId) return;
     setTogglingId(id);
     try {
-      await mutateMenu(selectedDate, { type: "toggleSoldOut", id, value });
+      await mutateMenu(menuKey, { type: "toggleSoldOut", id, value });
     } catch (e) {
       console.error(e);
       showError("品切れ設定の更新に失敗しました。");
@@ -124,7 +124,7 @@ export default function BaristaView({
     if (togglingId) return;
     setTogglingId(id);
     try {
-      await mutateMenu(selectedDate, { type: "setStock", id, value: Math.max(0, value) });
+      await mutateMenu(menuKey, { type: "setStock", id, value: Math.max(0, value) });
     } catch (e) {
       console.error(e);
       showError("在庫数の更新に失敗しました。");
